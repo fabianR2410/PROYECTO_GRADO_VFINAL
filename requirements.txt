@@ -4,6 +4,7 @@ uvicorn[standard]
 
 # ----- Para el Dashboard (Streamlit) -----
 streamlit
+matplotlib  <-- ¡AÑADE ESTA LÍNEA!
 
 # ----- Bibliotecas Comunes (ETL y Dashboard) -----
 pandas
