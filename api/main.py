@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-COVID-19 Data API (Versión 1.4 - Endpoint de Recarga)
-FastAPI application serving COVID-19 data.
-- Usa 'lifespan'.
-- Usa 'Depends'.
-- Corrige error JSON (NaN/inf).
-- Añade endpoint POST /admin/reload-data.
+COVID-19 Data API (Versión 2.1 - Despliegue en Render)
+- Ejecuta el ETL completo en memoria al iniciar.
+- Carga datos desde la URL de OWID (no archivos locales).
+- Usa importaciones relativas (scripts/ está dentro de api/)
 """
 from fastapi import FastAPI, HTTPException, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +14,14 @@ import numpy as np
 from pathlib import Path
 import logging
 from datetime import datetime
-import asyncio
+
+# --- NUEVAS IMPORTACIONES DEL ETL (CON RUTA RELATIVA) ---
+# Asumiendo que 'scripts' está DENTRO de la carpeta 'api'
+from .scripts.data_loader import CovidDataLoader
+from .scripts.data_cleaner import CovidDataCleaner
+from .scripts.data_imputer import CovidDataImputer
+from .scripts.feature_engineer import CovidFeatureEngineer
+# --------------------------------------------------------
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,76 +29,78 @@ logger = logging.getLogger(__name__)
 
 # --- Almacenamiento de datos en memoria ---
 covid_data: Optional[pd.DataFrame] = None
-# (Caché de modelos Prophet eliminada)
 
-# --- RUTAS ---
-# LÍNEA CORREGIDA:
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_DIR / "data" / "processed"
-# (Ruta a modelos Prophet eliminada)
-
-
-def load_data() -> pd.DataFrame:
-    """Load processed COVID data from disk. Returns the loaded DataFrame."""
+# --- LÓGICA DE CARGA MODIFICADA ---
+# Esta función ahora ejecutará el ETL completo
+def load_data_and_run_etl() -> pd.DataFrame:
+    """
+    Ejecuta el pipeline ETL completo en memoria:
+    1. Carga desde la URL de OWID
+    2. Limpia
+    3. Imputa
+    4. Crea Features
+    """
     global covid_data
-    logger.info("Iniciando carga/recarga de datos...")
+    logger.info("Iniciando pipeline ETL completo en memoria...")
     
     try:
-        parquet_files = list(DATA_PATH.glob("*.parquet"))
-        if parquet_files:
-            # Ordenar para tomar el más reciente si hay varios
-            latest_file = max(parquet_files, key=lambda p: p.stat().st_mtime)
-            df = pd.read_parquet(latest_file)
-            logger.info(f"Datos cargados desde {latest_file}")
-        else:
-            csv_files = list(DATA_PATH.glob("*.csv"))
-            if csv_files:
-                latest_file = max(csv_files, key=lambda p: p.stat().st_mtime)
-                df = pd.read_csv(latest_file)
-                logger.info(f"Datos cargados desde {latest_file}")
-            else:
-                raise FileNotFoundError("No processed data files found in data/processed")
-
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-
-        covid_data = df # Actualiza la variable global
-        logger.info("Variable global 'covid_data' actualizada.")
-        return df # Retorna el DataFrame recién cargado
+        # 1. Cargar Datos (desde la web)
+        logger.info("[ETL 1/4] Cargando datos desde la web...")
+        loader = CovidDataLoader()
+        # ¡IMPORTANTE! No pasamos 'local_filepath', usará la URL de OWID
+        df = loader.load_data(source="owid", force=True) 
+        
+        # 2. Limpiar Datos
+        logger.info("[ETL 2/4] Limpiando datos...")
+        cleaner = CovidDataCleaner()
+        df_clean = cleaner.clean_data(df)
+        
+        # 3. Imputar Valores
+        logger.info("[ETL 3/4] Imputando valores faltantes...")
+        imputer = CovidDataImputer()
+        df_imputed = imputer.smart_imputation(df_clean)
+        
+        # 4. Crear Features
+        logger.info("[ETL 4/4] Creando features...")
+        engineer = CovidFeatureEngineer()
+        df_final = engineer.create_all_features(df_imputed)
+        
+        # 5. Guardar en memoria
+        covid_data = df_final # Actualiza la variable global
+        logger.info("Pipeline ETL completado. Variable global 'covid_data' actualizada.")
+        return df_final
 
     except Exception as e:
-        logger.error(f"Error durante la carga de datos: {e}")
+        logger.error(f"Error fatal durante el pipeline ETL: {e}", exc_info=True)
         covid_data = None
         raise # Propagamos el error
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manejador del ciclo de vida de la API. Carga datos al inicio.
+    Manejador del ciclo de vida de la API. Ejecuta el ETL al inicio.
     """
     logger.info("Iniciando API...")
     try:
-        load_data() # Carga inicial
-        logger.info("Datos cargados exitosamente en el inicio.")
+        # ¡CAMBIO! Llamamos a la nueva función
+        load_data_and_run_etl() 
+        logger.info("Datos cargados y procesados exitosamente en el inicio.")
     except Exception as e:
-        logger.error(f"Error fatal al cargar datos en el inicio: {e}")
+        logger.error(f"Error fatal al ejecutar ETL en el inicio: {e}")
     
-    # (Comprobación de MODELS_DIR eliminada)
-
     yield # La API se ejecuta aquí
 
     # Código de apagado
     logger.info("Apagando API...")
     global covid_data
     covid_data = None
-    # (Limpieza de model_cache eliminada)
 
 
 # Initialize FastAPI app
 app = FastAPI(
     title="COVID-19 Data API",
-    description="API para acceder a métricas y series de tiempo de COVID-19",
-    version="1.4.0",
+    description="API para acceder a métricas y series de tiempo de COVID-19 (Datos en vivo)",
+    version="2.1.0", # Versión actualizada
     lifespan=lifespan
 )
 
@@ -113,40 +120,33 @@ def get_data() -> pd.DataFrame:
     """
     global covid_data
     if covid_data is None:
-        logger.warning("Intentando acceder a datos (covid_data is None), intentando recargar...")
+        logger.warning("Intentando acceder a datos (covid_data is None), intentando recargar ETL...")
         try:
-            load_data()
-            if covid_data is None: # Si load_data falló y puso None
-                 raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible: Error al recargar datos.")
-            logger.info("Recarga completada exitosamente dentro de get_data.")
+            # ¡CAMBIO! Llamamos a la nueva función
+            load_data_and_run_etl()
+            if covid_data is None: # Si falló
+                 raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible: Error al recargar ETL.")
+            logger.info("Recarga de ETL completada exitosamente dentro de get_data.")
         except Exception as e:
-            logger.error(f"Fallo crítico en la recarga dentro de get_data: {e}")
-            raise HTTPException(status_code=503, detail=f"Servicio no disponible: Error crítico al recargar datos - {e}")
+            logger.error(f"Fallo crítico en la recarga de ETL dentro de get_data: {e}")
+            raise HTTPException(status_code=503, detail=f"Servicio no disponible: Error crítico al recargar ETL - {e}")
     return covid_data
-
-# (Dependencia get_prophet_model eliminada)
-
 
 # --- Endpoint de Recarga ---
 @app.post("/admin/reload-data", status_code=status.HTTP_200_OK, tags=["Admin"])
 async def trigger_reload_data():
     """
-    Endpoint para forzar la recarga de los datos desde el disco.
+    Endpoint para forzar la re-ejecución de todo el pipeline ETL.
     """
-    logger.info("Recarga de datos solicitada vía endpoint POST /admin/reload-data...")
+    logger.info("Recarga de ETL solicitada vía endpoint POST /admin/reload-data...")
     try:
-        load_data()
-        
-        # (Limpieza de caché de modelos eliminada)
-        
-        logger.info("Datos recargados exitosamente vía endpoint.")
-        return {"message": "Data reload successful"}
-    except FileNotFoundError as e:
-         logger.error(f"Error durante la recarga vía endpoint: Archivo no encontrado - {e}")
-         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reload data: Data file not found - {e}")
+        # ¡CAMBIO! Llamamos a la nueva función
+        load_data_and_run_etl()
+        logger.info("Datos recargados (ETL) exitosamente vía endpoint.")
+        return {"message": "Data ETL reload successful"}
     except Exception as e:
-        logger.error(f"Error durante la recarga vía endpoint: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reload data: {e}")
+        logger.error(f"Error durante la recarga (ETL) vía endpoint: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reload ETL data: {e}")
 
 
 # --- Endpoints Públicos ---
@@ -167,7 +167,7 @@ async def root():
 
     return {
         "name": "COVID-19 Data API",
-        "version": "1.4.0",
+        "version": "2.1.0",
         "status": api_status,
         "data_last_updated": covid_data['date'].max().isoformat() if covid_data is not None and 'date' in covid_data.columns else "N/A",
         "endpoints": {
@@ -180,15 +180,11 @@ async def root():
             "/covid/compare": "Compare metrics across multiple countries",
             "/covid/latest": "Get latest data for all or specific countries",
             "/covid/global": "Get global aggregated statistics",
-            # (Endpoint /covid/forecast eliminado de la lista)
         },
          "admin_endpoints": {
-             "POST /admin/reload-data": "Trigger manual data reload from disk"
+             "POST /admin/reload-data": "Trigger manual ETL reload from web"
          }
     }
-
-
-# (Endpoint /covid/forecast eliminado)
 
 
 @app.get("/covid/countries", tags=["COVID Data"])
@@ -445,40 +441,18 @@ async def get_latest(
 async def get_global_stats(df: pd.DataFrame = Depends(get_data)):
     """Obtiene estadísticas globales agregadas (basadas en la fila 'World')."""
     try:
-        world_data = df[df['location'].str.lower() == 'world'].copy()
+        # Usamos 'World' porque así lo define 'data_loader.py' al agregar
+        world_data = df[df['location'].str.lower() == 'world'].copy() 
+        
         if world_data.empty:
-            logger.warning("Fila 'World' no encontrada, intentando sumar países...")
-            latest_idx = df.groupby('location')['date'].idxmax()
-            latest_data = df.loc[latest_idx]
-            aggregates = ['world', 'europe', 'asia', 'africa', 'north america', 'south america', 'oceania',
-                          'european union', 'high income', 'upper middle income', 'lower middle income', 'low income']
-            latest_countries = latest_data[~latest_data['location'].str.lower().isin(aggregates)]
-
-            if latest_countries.empty:
-                 raise HTTPException(status_code=404, detail="Global 'World' data not found and could not aggregate countries.")
-
-            latest_countries = latest_countries.replace([np.inf, -np.inf], np.nan)
-
-            global_stats = {
-                "source": "Aggregated from countries",
-                "last_updated": latest_countries['date'].max().isoformat() if not latest_countries.empty else None,
-                "total_countries_aggregated": len(latest_countries),
-                "aggregated_totals": {}
-            }
-            numeric_cols = latest_countries.select_dtypes(include=np.number).columns
-            for col in numeric_cols:
-                if any(k in col.lower() for k in ['total_', 'new_', 'people_', 'hosp_', 'icu_']):
-                    col_sum = latest_countries[col].sum()
-                    global_stats['aggregated_totals'][col] = float(col_sum) if pd.notna(col_sum) else None
-            
-            return global_stats
+             raise HTTPException(status_code=404, detail="Global 'World' data not found.")
 
         else:
              latest_world_row = world_data.sort_values('date', ascending=False).iloc[0]
              latest_world = latest_world_row.replace([np.inf, -np.inf], np.nan).astype(object).where(pd.notnull(latest_world_row), None)
 
              global_summary = {
-                 "source": "Directly from 'World' aggregate",
+                 "source": "Aggregated by data_loader", # Fuente actualizada
                  "location": latest_world.get('location'),
                  "last_updated": latest_world['date'].isoformat() if latest_world.get('date') is not None else None,
                  "population": int(latest_world['population']) if latest_world.get('population') is not None else None,
@@ -500,5 +474,6 @@ async def get_global_stats(df: pd.DataFrame = Depends(get_data)):
 
 if __name__ == "__main__":
     import uvicorn
-    # Es mejor usar 'python start_api.py' que tiene reload=True
+    # Este 'if' es principalmente para pruebas locales, 
+    # Render usará el comando 'uvicorn api.main:app'
     uvicorn.run(app, host="0.0.0.0", port=8000)
