@@ -23,7 +23,10 @@ from functools import reduce
 # =============================================================================
 
 # --- CONFIGURACIÓN DE LA API ---
-API_BASE_URL = "http://localhost:8000"
+# --- CONFIGURACIÓN DE LA API ---
+# Lee la URL pública desde los "Secrets" de Streamlit
+API_BASE_URL = st.secrets["API_URL"]
+# -------------------------------
 # -------------------------------
 # --- CONSTANTES ---
 AGGREGATES = ['world', 'europe', 'asia', 'africa', 'north america', 'south america', 'oceania',
