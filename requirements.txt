@@ -1,9 +1,9 @@
-streamlit
-matplotlib
-Cython
-pandas==1.5.3
+streamlit==1.38.0
+pandas==2.2.2
 numpy==1.26.4
-plotly==5.15.0
 scipy==1.11.4
-requests
+matplotlib==3.9.0
+plotly==5.22.0
 statsmodels==0.14.2
+requests==2.32.3
+Cython==0.29.37
