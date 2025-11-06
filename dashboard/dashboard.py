@@ -23,11 +23,10 @@ from functools import reduce
 # =============================================================================
 
 # --- CONFIGURACIÓN DE LA API ---
-# --- CONFIGURACIÓN DE LA API ---
 # Lee la URL pública desde los "Secrets" de Streamlit
 API_BASE_URL = st.secrets["API_URL"]
 # -------------------------------
-# -------------------------------
+
 # --- CONSTANTES ---
 AGGREGATES = ['world', 'europe', 'asia', 'africa', 'north america', 'south america', 'oceania',
               'european union', 'high income', 'upper middle income', 'lower middle income', 'low income']
@@ -209,7 +208,7 @@ def get_translated_columns(df, exclude_cols=[], include_only=[]):
         cols_to_search = [c for c in cols_to_search if c in include_only]
         
     numeric_cols = [c for c in df.select_dtypes(include=['float64', 'int64', 'float', 'int']).columns
-                    if c in cols_to_search] 
+                   if c in cols_to_search] 
     
     return {col: translate_column(col) for col in numeric_cols}
 
@@ -375,25 +374,28 @@ def check_api_status():
     except requests.exceptions.RequestException:
         return False
 
-# --- FUNCIÓN DE CARGA CON CACHÉ TTL ---
+# --- FUNCIÓN DE CARGA CON CACHÉ TTL (CORREGIDA) ---
 @st.cache_data(ttl=120)  # caché por 2 minutos
 def load_dashboard_data():
     """
     Carga los datos iniciales (latest, countries, metrics) desde la API.
-    Se usa un caché de 2 minutos para no sobrecargar la API.
+    Se usa un caché de 2 minutos y un timeout largo para el "cold start" de Render.
     """
     try:
-        resp_latest = requests.get(f"{API_BASE_URL}/covid/latest", timeout=6)
+        # Aumentamos el timeout a 45 segundos para que Render despierte
+        timeout_largo = 45
+        
+        resp_latest = requests.get(f"{API_BASE_URL}/covid/latest", timeout=timeout_largo)
         resp_latest.raise_for_status()
         df_latest = pd.DataFrame(resp_latest.json().get('data', []))
         if 'date' in df_latest.columns:
             df_latest['date'] = pd.to_datetime(df_latest['date'])
 
-        resp_countries = requests.get(f"{API_BASE_URL}/covid/countries", timeout=6)
+        resp_countries = requests.get(f"{API_BASE_URL}/covid/countries", timeout=timeout_largo)
         resp_countries.raise_for_status()
         countries_list = resp_countries.json().get('countries', [])
 
-        resp_metrics = requests.get(f"{API_BASE_URL}/covid/metrics", timeout=6)
+        resp_metrics = requests.get(f"{API_BASE_URL}/covid/metrics", timeout=timeout_largo)
         resp_metrics.raise_for_status()
         all_metrics = resp_metrics.json().get('all_metrics', [])
 
@@ -410,8 +412,6 @@ def load_dashboard_data():
 # --- FUNCIÓN Pestaña 1: Vista General ---
 def vista_general(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 1: VISTA GENERAL"""
-    
-    # --- 💡 MEJORA: Los KPIs se movieron a la función main() ---
     
     # --- Gráficos Principales (Mapa y Pastel) ---
     main_col1, main_col2 = st.columns([2, 1])
@@ -451,7 +451,7 @@ def vista_general(df_latest, metrics_df):
                 )
                 st.plotly_chart(fig, use_container_width=True) 
             elif not selected_metric_map:
-                 st.info("Selecciona una métrica para mostrar el mapa.")
+                st.info("Selecciona una métrica para mostrar el mapa.")
 
     with main_col2:
         with st.container(border=True): # --- 💡 MEJORA: Contenedor ---
@@ -510,7 +510,7 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
         with col1:
             default_index = filtered_countries.index('Ecuador') if 'Ecuador' in filtered_countries else 0
             selected_country = st.selectbox("País o Región", filtered_countries,
-                                            index=default_index)
+                                           index=default_index)
             use_log = st.checkbox("Usar escala logarítmica", key="log_evol")
             show_raw_data = st.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
         with col2:
@@ -624,7 +624,7 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
 
             fig.update_layout(height=350 * len(selected_metrics), showlegend=True, hovermode='x unified', barmode='overlay')
             if len(selected_metrics) == 1:
-                 fig.update_layout(showlegend=False)
+                fig.update_layout(showlegend=False)
             
             st.plotly_chart(fig, use_container_width=True) 
 
@@ -706,7 +706,7 @@ def comparaciones_paises(df_latest, metrics_df):
                 )
                 st.plotly_chart(fig, use_container_width=True) 
             elif not selected_countries:
-                 st.warning("Selecciona al menos un país para el gráfico de barras.")
+                st.warning("Selecciona al menos un país para el gráfico de barras.")
             elif selected_metric_bar:
                 st.info("Selecciona al menos un país.")
             else:
@@ -831,7 +831,7 @@ def estadisticas_global(df_latest, metrics_df):
                 with more_col4: st.metric("Máx", formatar_numero_grande(values.max()))
                 
             elif selected_metric:
-                 st.warning(f"No se pueden calcular estadísticas para '{selected_name}' en {title_suffix}.")
+                st.warning(f"No se pueden calcular estadísticas para '{selected_name}' en {title_suffix}.")
             else:
                 st.info("Selecciona una métrica para ver las estadísticas.")
 
@@ -1033,17 +1033,17 @@ def main():
         total_pop = np.nan 
         world_pop_row = latest[latest['location'].str.lower() == 'world'] if 'location' in latest.columns else pd.DataFrame()
         if not world_pop_row.empty and 'population' in world_pop_row.columns:
-             total_pop = world_pop_row['population'].iloc[0]
+            total_pop = world_pop_row['population'].iloc[0]
         else:
-             # Plan B: Sumar países si 'World' no existe o no tiene población
-             try:
-                 non_aggregate_pop = latest[~latest['location'].str.lower().isin(AGGREGATES)]['population'].sum() if 'location' in latest.columns and 'population' in latest.columns else np.nan
-                 total_pop = non_aggregate_pop
-                 pop_label = "Población (Suma Países)"
-                 pop_help = "Suma de poblaciones de países individuales (excluyendo regiones agregadas)."
-             except Exception:
-                 pop_label = "Población (Error)"
-                 pop_help = "No se pudo calcular la población."
+            # Plan B: Sumar países si 'World' no existe o no tiene población
+            try:
+                non_aggregate_pop = latest[~latest['location'].str.lower().isin(AGGREGATES)]['population'].sum() if 'location' in latest.columns and 'population' in latest.columns else np.nan
+                total_pop = non_aggregate_pop
+                pop_label = "Población (Suma Países)"
+                pop_help = "Suma de poblaciones de países individuales (excluyendo regiones agregadas)."
+            except Exception:
+                pop_label = "Población (Error)"
+                pop_help = "No se pudo calcular la población."
         st.metric(label=pop_label, value=formatar_numero_grande(total_pop), help=pop_help)
     with col4:
         unique_countries = latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
@@ -1098,7 +1098,7 @@ def main():
     # =======================================================
     # --- Pie de Página ---
     st.markdown("---")
-    unique_countries_count = df_latest[~df_latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in df_latest.columns else 0
+    unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in df_latest.columns else 0
     st.markdown(f"""
         <div style='text-align: center; color: #6c757d; padding: 20px;'>
             <p><strong>Fuente de Datos:</strong> API COVID-19 (vía Our World in Data) |
