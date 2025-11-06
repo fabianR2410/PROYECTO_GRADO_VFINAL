@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-COVID-19 Data API (Versión 2.3 - Despliegue en Render)
+COVID-19 Data API (Versión 2.4 - Despliegue en Render)
 
+- ¡CAMBIO! Carga datos desde un CSV local (api/data/owid-covid-data.csv).
 - Ejecuta el ETL completo en memoria al iniciar.
-- Carga datos desde la URL de OWID (no archivos locales).
 - Usa importaciones directas (from scripts...)
 - Corrige el patrón regex para las fechas.
 """
@@ -18,8 +18,6 @@ import logging
 from datetime import datetime
 
 # --- IMPORTACIONES DEL ETL (CORREGIDAS PARA RENDER) ---
-# Asumiendo que 'scripts' está DENTRO de la carpeta 'api'
-# y el Root Directory de Render está seteado en 'api'
 from scripts.data_loader import CovidDataLoader
 from scripts.data_cleaner import CovidDataCleaner
 from scripts.data_imputer import CovidDataImputer
@@ -38,7 +36,7 @@ covid_data: Optional[pd.DataFrame] = None
 def load_data_and_run_etl() -> pd.DataFrame:
     """
     Ejecuta el pipeline ETL completo en memoria:
-    1. Carga desde la URL de OWID
+    1. Carga desde el CSV local
     2. Limpia
     3. Imputa
     4. Crea Features
@@ -47,11 +45,14 @@ def load_data_and_run_etl() -> pd.DataFrame:
     logger.info("Iniciando pipeline ETL completo en memoria...")
     
     try:
-        # 1. Cargar Datos (desde la web)
-        logger.info("[ETL 1/4] Cargando datos desde la web...")
+        # --- ¡CAMBIO IMPORTANTE! ---
+        logger.info("[ETL 1/4] Cargando datos desde archivo CSV local...")
         loader = CovidDataLoader()
-        # ¡IMPORTANTE! No pasamos 'local_filepath', usará la URL de OWID
-        df = loader.load_data(source="owid", force=True) 
+        
+        # Esta es la ruta al CSV que debes subir
+        # (Render trabaja desde la carpeta 'api', así que la ruta es 'data/...')
+        df = loader.load_data(local_filepath="data/owid-covid-data.csv") 
+        # --- FIN DEL CAMBIO ---
         
         # 2. Limpiar Datos
         logger.info("[ETL 2/4] Limpiando datos...")
@@ -85,9 +86,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Iniciando API...")
     try:
-        # ¡CAMBIO! Llamamos a la nueva función
+        # Llamamos a la función que carga desde el CSV
         load_data_and_run_etl() 
-        logger.info("Datos cargados y procesados exitosamente en el inicio.")
+        logger.info("Datos cargados (desde CSV) y procesados exitosamente en el inicio.")
     except Exception as e:
         logger.error(f"Error fatal al ejecutar ETL en el inicio: {e}")
     
@@ -102,8 +103,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # Initialize FastAPI app
 app = FastAPI(
     title="COVID-19 Data API",
-    description="API para acceder a métricas y series de tiempo de COVID-19 (Datos en vivo)",
-    version="2.3.0", # Versión actualizada
+    description="API para acceder a métricas y series de tiempo de COVID-19 (Datos Locales)",
+    version="2.4.0", # Versión actualizada
     lifespan=lifespan
 )
 
@@ -125,7 +126,7 @@ def get_data() -> pd.DataFrame:
     if covid_data is None:
         logger.warning("Intentando acceder a datos (covid_data is None), intentando recargar ETL...")
         try:
-            # ¡CAMBIO! Llamamos a la nueva función
+            # Llamamos a la función que carga desde el CSV
             load_data_and_run_etl()
             if covid_data is None: # Si falló
                  raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible: Error al recargar ETL.")
@@ -139,11 +140,11 @@ def get_data() -> pd.DataFrame:
 @app.post("/admin/reload-data", status_code=status.HTTP_200_OK, tags=["Admin"])
 async def trigger_reload_data():
     """
-    Endpoint para forzar la re-ejecución de todo el pipeline ETL.
+    Endpoint para forzar la re-ejecución de todo el pipeline ETL (leyendo el CSV).
     """
     logger.info("Recarga de ETL solicitada vía endpoint POST /admin/reload-data...")
     try:
-        # ¡CAMBIO! Llamamos a la nueva función
+        # Llamamos a la función que carga desde el CSV
         load_data_and_run_etl()
         logger.info("Datos recargados (ETL) exitosamente vía endpoint.")
         return {"message": "Data ETL reload successful"}
@@ -170,8 +171,9 @@ async def root():
 
     return {
         "name": "COVID-19 Data API",
-        "version": "2.3.0",
+        "version": "2.4.0",
         "status": api_status,
+        "data_source": "Local CSV (owid-covid-data.csv)",
         "data_last_updated": covid_data['date'].max().isoformat() if covid_data is not None and 'date' in covid_data.columns else "N/A",
         "endpoints": {
             "/docs": "Interactive API documentation (Swagger UI)",
@@ -185,7 +187,7 @@ async def root():
             "/covid/global": "Get global aggregated statistics",
         },
          "admin_endpoints": {
-             "POST /admin/reload-data": "Trigger manual ETL reload from web"
+             "POST /admin/reload-data": "Trigger manual ETL reload from CSV"
          }
     }
 
