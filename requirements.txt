@@ -1,5 +1,6 @@
 streamlit
 matplotlib
+Cython              <-- ¡AÑADE ESTA LÍNEA!
 pandas==1.5.3
 numpy==1.26.4
 plotly==5.15.0
