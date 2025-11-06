@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 2.1 - Mejoras Visuales y Filtros)
+Panel COVID-19 - Análisis (Versión 2.2 - Corrección st.set_page_config)
 Este dashboard consulta la API para visualización.
 """
 import streamlit as st
@@ -15,6 +15,15 @@ import requests
 import time
 import statsmodels.api as sm
 from functools import reduce 
+
+# =============================================================================
+# --- ¡¡CORRECCIÓN!! st.set_page_config DEBE SER EL PRIMER COMANDO ---
+# =============================================================================
+st.set_page_config(
+    page_title="Panel COVID-19",
+    page_icon="🌍",
+    layout="wide" 
+)
 
 # =============================================================================
 # --- 1. CONFIGURACIÓN Y CONSTANTES ---
@@ -58,6 +67,7 @@ PIE_ALLOWED_METRICS = [
 # --- ¡NUEVA LISTA! ---
 # Métricas técnicas que NUNCA queremos mostrar en los selectores
 TECHNICAL_METRICS_TO_HIDE = [
+    'mes',
     'new_cases_lag1',
     'new_cases_lag14',
     'new_cases_lag7',
@@ -167,6 +177,7 @@ def create_translated_multiselect(label, df, exclude_cols=[], include_only=[], d
 # =============================================================================
 # --- 3. CSS PERSONALIZADO (¡MEJORADO!) ---
 # =============================================================================
+# Esto ahora se ejecuta DESPUÉS de st.set_page_config, lo cual es correcto
 st.markdown("""
     <style>
     /* --- Fuente Principal (Opcional, pero elegante) --- */
@@ -251,10 +262,11 @@ st.markdown("""
 # =============================================================================
 
 # --- FUNCIÓN DE PING ---
+@st.cache_data(ttl=60) # Chequeo rápido
 def check_api_status():
     """Comprueba si la API en API_BASE_URL está en línea."""
     try:
-        resp = requests.get(f"{API_BASE_URL}/", timeout=2)
+        resp = requests.get(f"{API_BASE_URL}/", timeout=3)
         return resp.status_code == 200
     except requests.exceptions.RequestException:
         return False
@@ -498,12 +510,8 @@ def main():
     """
     Punto de entrada principal de la aplicación Streamlit.
     """
-    st.set_page_config(
-        page_title="Panel COVID-19",
-        page_icon="🌍", # ¡CORREGIDO!
-        layout="wide" 
-    )
-
+    # --- ¡¡CORRECCIÓN!! st.set_page_config se movió al inicio del script ---
+    
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
