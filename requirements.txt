@@ -1,12 +1,5 @@
-# ----- Para la API (Render) -----
-fastapi
-uvicorn[standard]
-
-# ----- Para el Dashboard (Streamlit) -----
 streamlit
 matplotlib
-
-# ----- Bibliotecas Comunes (ETL y Dashboard) -----
 pandas<2.0
 numpy<2.0
 plotly
