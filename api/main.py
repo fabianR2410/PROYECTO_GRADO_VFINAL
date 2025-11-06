@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-COVID-19 Data API (Versión 2.1 - Despliegue en Render)
+COVID-19 Data API (Versión 2.2 - Despliegue en Render)
+
 - Ejecuta el ETL completo en memoria al iniciar.
 - Carga datos desde la URL de OWID (no archivos locales).
-- Usa importaciones relativas (scripts/ está dentro de api/)
+- Usa importaciones directas (from scripts...)
 """
 from fastapi import FastAPI, HTTPException, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,12 +16,13 @@ from pathlib import Path
 import logging
 from datetime import datetime
 
-# --- NUEVAS IMPORTACIONES DEL ETL (CON RUTA RELATIVA) ---
+# --- IMPORTACIONES DEL ETL (CORREGIDAS PARA RENDER) ---
 # Asumiendo que 'scripts' está DENTRO de la carpeta 'api'
-from .scripts.data_loader import CovidDataLoader
-from .scripts.data_cleaner import CovidDataCleaner
-from .scripts.data_imputer import CovidDataImputer
-from .scripts.feature_engineer import CovidFeatureEngineer
+# y el Root Directory de Render está seteado en 'api'
+from scripts.data_loader import CovidDataLoader
+from scripts.data_cleaner import CovidDataCleaner
+from scripts.data_imputer import CovidDataImputer
+from scripts.feature_engineer import CovidFeatureEngineer
 # --------------------------------------------------------
 
 # Configure logging
@@ -100,7 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="COVID-19 Data API",
     description="API para acceder a métricas y series de tiempo de COVID-19 (Datos en vivo)",
-    version="2.1.0", # Versión actualizada
+    version="2.2.0", # Versión actualizada
     lifespan=lifespan
 )
 
@@ -167,7 +169,7 @@ async def root():
 
     return {
         "name": "COVID-19 Data API",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "status": api_status,
         "data_last_updated": covid_data['date'].max().isoformat() if covid_data is not None and 'date' in covid_data.columns else "N/A",
         "endpoints": {
@@ -237,7 +239,7 @@ async def get_timeseries(
     df: pd.DataFrame = Depends(get_data),
     country: str = Query(..., description="Country name"),
     metric: str = Query("new_cases", description="Metric to retrieve"),
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)", pattern=r"^\d{4-\d{2}-\d{2}$"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
 ):
     """Obtiene datos de series de tiempo para un país y métrica específicos."""
@@ -475,5 +477,5 @@ async def get_global_stats(df: pd.DataFrame = Depends(get_data)):
 if __name__ == "__main__":
     import uvicorn
     # Este 'if' es principalmente para pruebas locales, 
-    # Render usará el comando 'uvicorn api.main:app'
+    # Render usará el comando 'uvicorn main:app'
     uvicorn.run(app, host="0.0.0.0", port=8000)
