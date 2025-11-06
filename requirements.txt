@@ -1,9 +1,9 @@
 streamlit
 matplotlib
-Cython              <-- ¡AÑADE ESTA LÍNEA!
+Cython
 pandas==1.5.3
 numpy==1.26.4
 plotly==5.15.0
-scipy==1.11.4
+scipy==1.10.1          <-- ¡CAMBIA ESTA LÍNEA!
 requests
 statsmodels==0.14.2
