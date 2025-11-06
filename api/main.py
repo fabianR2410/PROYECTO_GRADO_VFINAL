@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-COVID-19 Data API (Versión 2.2 - Despliegue en Render)
+COVID-19 Data API (Versión 2.3 - Despliegue en Render)
 
 - Ejecuta el ETL completo en memoria al iniciar.
 - Carga datos desde la URL de OWID (no archivos locales).
 - Usa importaciones directas (from scripts...)
+- Corrige el patrón regex para las fechas.
 """
 from fastapi import FastAPI, HTTPException, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,7 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="COVID-19 Data API",
     description="API para acceder a métricas y series de tiempo de COVID-19 (Datos en vivo)",
-    version="2.2.0", # Versión actualizada
+    version="2.3.0", # Versión actualizada
     lifespan=lifespan
 )
 
@@ -169,7 +170,7 @@ async def root():
 
     return {
         "name": "COVID-19 Data API",
-        "version": "2.2.0",
+        "version": "2.3.0",
         "status": api_status,
         "data_last_updated": covid_data['date'].max().isoformat() if covid_data is not None and 'date' in covid_data.columns else "N/A",
         "endpoints": {
@@ -239,7 +240,7 @@ async def get_timeseries(
     df: pd.DataFrame = Depends(get_data),
     country: str = Query(..., description="Country name"),
     metric: str = Query("new_cases", description="Metric to retrieve"),
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)", pattern=r"^\d{4-\d{2}-\d{2}$"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
 ):
     """Obtiene datos de series de tiempo para un país y métrica específicos."""
