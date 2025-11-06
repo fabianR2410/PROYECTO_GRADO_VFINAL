@@ -19,6 +19,16 @@ import statsmodels.api as sm
 from functools import reduce 
 
 # =============================================================================
+# --- CONFIGURACIÓN DE PÁGINA (MOVIDO AQUÍ) ---
+# =============================================================================
+# Esto DEBE ser el primer comando de Streamlit en el script
+st.set_page_config(
+    page_title="Panel COVID-19",
+    page_icon="🌍",
+    layout="wide" 
+)
+
+# =============================================================================
 # --- 1. CONFIGURACIÓN Y CONSTANTES ---
 # =============================================================================
 
@@ -257,107 +267,9 @@ def create_translated_multiselect(label, df, exclude_cols=[], include_only=[], d
     return original_cols, selected_translated
 
 # =============================================================================
-# --- 3. CSS PERSONALIZADO ---
+# --- 3. CSS PERSONALIZADO (MOVIDO DENTRO DE MAIN) ---
 # =============================================================================
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-    * {
-        font-family: 'Inter', sans-serif;
-    }
-
-    .stApp {
-        background: linear-gradient(180deg, #f8f9fa 0%, #f0f2f5 100%);
-    }
-
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-
-    .main-title {
-        font-size: 32px;
-        font-weight: 700;
-        color: #1a1a1a;
-        margin-bottom: 5px;
-    }
-
-    .subtitle {
-        font-size: 14px;
-        color: #6c757d;
-        margin-bottom: 30px;
-    }
-
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s ease-in-out;
-        height: 100%; 
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    
-    [data-testid="stMetric"]:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
-    }
-    
-    [data-testid="stMetricLabel"] {
-        order: -1;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: white;
-        border-radius: 12px;
-        padding: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        padding: 0 24px;
-        background-color: transparent;
-        border-radius: 8px;
-        color: #6c757d;
-        font-weight: 500;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: #e7f3ff;
-        color: #0066cc;
-    }
-
-    .section-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #1a1a1a;
-        margin-bottom: 20px;
-    }
-
-    .stSelectbox, .stMultiSelect {
-        background: transparent; 
-    }
-
-    .stButton button {
-        border-radius: 8px;
-        font-weight: 500;
-        padding: 8px 24px;
-    }
-
-    .status-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        background-color: #28a745;
-        color: white;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# El st.markdown() para el CSS fue movido a la función main()
 
 # =============================================================================
 # --- 4. FUNCIONES DE DATOS (API) ---
@@ -973,11 +885,7 @@ def main():
     Punto de entrada principal de la aplicación Streamlit.
     Aquí se configura la página, se cargan los datos y se definen las pestañas.
     """
-    st.set_page_config(
-        page_title="Panel COVID-19",
-        page_icon="🌍",
-        layout="wide" 
-    )
+    # st.set_page_config() FUE MOVIDO AL INICIO DEL SCRIPT (FUERA DE MAIN)
 
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
@@ -989,6 +897,107 @@ def main():
             st.markdown('<div class="status-badge">✓ API Conectada</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="status-badge" style="background-color: #dc3545;">API Desconectada</div>', unsafe_allow_html=True)
+
+    # --- CSS PERSONALIZADO (MOVIDO AQUÍ, DENTRO DE MAIN) ---
+    st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .stApp {
+            background: linear-gradient(180deg, #f8f9fa 0%, #f0f2f5 100%);
+        }
+
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+
+        .main-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+
+        [data-testid="stMetric"] {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease-in-out;
+            height: 100%; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        [data-testid="stMetric"]:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        [data-testid="stMetricLabel"] {
+            order: -1;
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            padding: 0 24px;
+            background-color: transparent;
+            border-radius: 8px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background-color: #e7f3ff;
+            color: #0066cc;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        .stSelectbox, .stMultiSelect {
+            background: transparent; 
+        }
+
+        .stButton button {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 8px 24px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background-color: #28a745;
+            color: white;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # --- Carga de Datos Inicial ---
     try:
