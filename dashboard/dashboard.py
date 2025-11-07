@@ -1,13 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Panel COVID-19 - Análisis (Versión 4.1 - Estadísticas Mejoradas)
-
-- ELIMINADO: Pestaña interna de Evolución Temporal Comparada (Tab 3).
-- ELIMINADO: Sección de Análisis Guiado (Tab 4).
-- MEJORADO (Tab 4): Tarjetas de estadísticas en grid 2x2.
-- MEJORADO (Tab 4): Añadida escala logarítmica al histograma.
-- MEJORADO (Tab 4): Añadido Diagrama de Cajas (Box Plot) para continentes.
-"""
+# dashboard.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -26,7 +18,7 @@ from functools import reduce
 # =============================================================================
 # Esto DEBE ser el primer comando de Streamlit
 st.set_page_config(
-    page_title="Panel COVID-19 (Proyecto de Grado)",
+    page_title="Panel COVID-19 (GRUPO 6)",
     page_icon="🌍",
     layout="wide" 
 )
@@ -43,7 +35,7 @@ API_BASE_URL = st.secrets["API_URL"]
 AGGREGATES = ['world', 'europe', 'asia', 'africa', 'north america', 'south america', 'oceania',
               'european union', 'high income', 'upper middle income', 'lower middle income', 'low income']
 
-# --- Listas de Métricas (Tu código original) ---
+# --- Listas de Métricas  ---
 CROSS_SECTIONAL_EXCLUDE_METRICS = [
     'new_cases', 'new_deaths', 'new_tests', 'new_vaccinations', 
     'new_cases_smoothed', 'new_deaths_smoothed', 'new_tests_smoothed', 'new_vaccinations_smoothed', 
@@ -331,7 +323,7 @@ def check_api_status():
     except requests.exceptions.RequestException:
         return False
 
-# --- FUNCIÓN DE CARGA CON CACHÉ TTL (¡CORREGIDA!) ---
+# --- FUNCIÓN DE CARGA CON CACHÉ TTL  ---
 @st.cache_data(ttl=120)  # caché por 2 minutos
 def load_dashboard_data():
     """
@@ -339,7 +331,7 @@ def load_dashboard_data():
     Se usa un caché de 2 minutos y un timeout largo para el "cold start" de Render.
     """
     try:
-        # ¡CORREGIDO! Timeout aumentado a 45 segundos
+        # Timeout aumentado a 45 segundos
         timeout_largo = 45
         
         resp_latest = requests.get(f"{API_BASE_URL}/covid/latest", timeout=timeout_largo)
@@ -363,7 +355,7 @@ def load_dashboard_data():
         st.error(f"Error de Conexión con la API: {e}. La API en Render puede estar 'despertando'. Por favor, refresca la página en 30 segundos.")
         return None, None, None
 
-# --- ¡NUEVA FUNCIÓN! (Para Pestaña 2) ---
+# --- ¡FUNCIÓN! (Para Pestaña 2) ---
 @st.cache_data(ttl=600) # Caché por 10 minutos
 def get_full_history(country):
     """
@@ -402,14 +394,14 @@ def get_full_history(country):
 def render_tab_global(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 1: VISTA GENERAL"""
     
-    # --- Gráficos Principales (Mapa y Pastel) ---
+    # --- Gráficos Principales (Mapa y Barras) ---
     main_col1, main_col2 = st.columns([2, 1])
 
     with main_col1:
         with st.container(border=False): 
             st.markdown('<div class="section-title">🗺️ Distribución Global (Mapa)</div>', unsafe_allow_html=True)
             
-            # --- ¡MEJORA! Selector de tipo de mapa ---
+            # --- Selector de tipo de mapa ---
             tipo_mapa = st.radio("Tipo de Proyección del Mapa", ["Globo", "Plano"], horizontal=True, key="map_type")
             proyeccion = "orthographic" if tipo_mapa == "Globo" else "natural earth"
 
@@ -463,7 +455,7 @@ def render_tab_global(df_latest, metrics_df):
                     pie_data = pie_data[pie_data[selected_metric_bar] > 0] 
                     
                     if not pie_data.empty:
-                        # --- ¡MEJORA! Reemplazado Pastel por Barras Horizontales ---
+                        
                         pie_data_sorted = pie_data.sort_values(by=selected_metric_bar, ascending=True)
                         fig_bar = px.bar(
                             pie_data_sorted,
@@ -488,7 +480,7 @@ def render_tab_global(df_latest, metrics_df):
             else:
                 st.info("Selecciona una métrica para mostrar el gráfico.")
 
-# --- FUNCIÓN Pestaña 2: Evolución por País (¡REFACTORIZADA!) ---
+# --- FUNCIÓN Pestaña 2: Evolución por País ---
 def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
     """LÓGICA REFACTORIZADA PARA LA PESTAÑA 2: EVOLUCIÓN POR PAÍS"""
 
@@ -625,7 +617,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
     elif not selected_metrics:
         st.info("Selecciona al menos una métrica para graficar.")
 
-# --- FUNCIÓN Pestaña 3: Comparaciones (MODIFICADA) ---
+# --- FUNCIÓN Pestaña 3: Comparaciones  ---
 def render_tab_comparativo(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 3: COMPARACIONES (PAÍSES)"""
     latest = df_latest
@@ -734,14 +726,14 @@ def render_tab_comparativo(df_latest, metrics_df):
                 st.info("Selecciona al menos una métrica para la tabla/heatmap.")
 
 
-# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡MEJORADA!) ---
+# --- FUNCIÓN Pestaña 4: Factores y Correlaciones  ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES (¡COMPLETA!)"""
     st.markdown("Analiza las relaciones globales entre métricas socioeconómicas y los resultados de la pandemia.")
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
-    # --- (Tu código de Pestaña 4: Estadísticas) ---
+    # --- (Pestaña 4: Estadísticas) ---
     with st.container(border=False): 
         st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
         
@@ -761,7 +753,7 @@ def render_tab_factores(df_latest, metrics_df):
             with col3:
                 st.markdown("<br>", unsafe_allow_html=True) 
                 include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
-                # --- MEJORA 1: Añadir Escala Logarítmica ---
+                # --- Escala Logarítmica ---
                 use_log_scale = st.checkbox("Escala Logarítmica", value=True, key="stats_log", help="Recomendado para datos muy sesgados.")
 
         title_suffix = ""
@@ -792,7 +784,7 @@ def render_tab_factores(df_latest, metrics_df):
             st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
                 
-                # --- MEJORA 2: Arreglar tarjetas truncadas (Grid 2x2) ---
+                # --- Arreglar tarjetas truncadas (Grid 2x2) ---
                 row1_col1, row1_col2 = st.columns(2)
                 with row1_col1:
                     st.metric("Media", formatar_numero_grande(values.mean()))
@@ -804,7 +796,7 @@ def render_tab_factores(df_latest, metrics_df):
                     st.metric("Desv. Std", formatar_numero_grande(values.std()))
                 with row2_col2:
                     st.metric("N (Países)", f"{len(values)}")
-                # --- Fin de la Mejora 2 ---
+                # --- Fin  ---
 
         with main_col2:
             st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
@@ -823,7 +815,7 @@ def render_tab_factores(df_latest, metrics_df):
                 fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
                 st.plotly_chart(fig_hist, use_container_width=True) 
 
-        # --- MEJORA 3: Añadir Diagrama de Cajas (Box Plot) ---
+        # ---  Diagrama de Cajas (Box Plot) ---
         st.markdown("---")
         st.markdown(f'<div class="section-title">Comparación por Continente ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
         st.markdown("Un **Diagrama de Cajas** es ideal para comparar las distribuciones (mediana, rangos) entre continentes.")
@@ -898,10 +890,10 @@ def render_tab_factores(df_latest, metrics_df):
                 st.plotly_chart(fig_scatter, use_container_width=True) 
 
 
-# --- ¡NUEVA FUNCIÓN! Pestaña 5: Arquitectura ---
+# --- Pestaña 5: Arquitectura ---
 def render_tab_arquitectura():
-    """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL PROYECTO"""
-    st.markdown('<div class="section-title">🏗️ Sobre este Proyecto de Grado</div>', unsafe_allow_html=True)
+    """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL SISTEMA"""
+    st.markdown('<div class="section-title">🏗️ Sobre este Proyecto</div>', unsafe_allow_html=True)
     
     with st.container(border=False):
         st.markdown("### Resumen del Proyecto")
@@ -944,11 +936,15 @@ def render_tab_arquitectura():
     st.markdown("---")
 
     with st.container(border=False):
-        st.markdown("### 🙏 Agradecimientos")
+        st.markdown("### DESPEDIDA")
         st.markdown("""
-        Quiero extender mi más sincero agradecimiento a mi director de proyecto, a los miembros del jurado por su tiempo y orientación, y a mi familia por su apoyo incondicional durante el desarrollo de este trabajo de grado.
         
-        Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube (CI/CD).
+        Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube.
+        CON MUCHO CARIÑO GRUPO 6
+        INTEGRANTES:
+        - FABIAN REYES.
+        - WORMAN ANDRADE.
+        - CELSO AGUIRRE.
         """)
 
 # =============================================================================
@@ -964,8 +960,8 @@ def main():
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
-        st.markdown('<div class="main-title">🌍 Panel COVID-19 - Proyecto de Grado</div>', unsafe_allow_html=True)
-        st.markdown('<div class="subtitle">Análisis de datos, arquitectura de sistema y despliegue en la nube</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">🌍 Panel COVID-19</div>', unsafe_allow_html=True)
+        st.markdown('<div class="subtitle">Análisis de datos COVID-19 2020-2023</div>', unsafe_allow_html=True)
     with col2:
         if check_api_status():
             st.markdown('<div class="status-badge">✓ API Conectada</div>', unsafe_allow_html=True)
@@ -1032,7 +1028,7 @@ def main():
     
     st.markdown("---") # Separador antes de las pestañas
     
-    # --- ¡PESTAÑAS NARRATIVAS MEJORADAS! ---
+    # --- ¡PESTAÑAS NARRATIVAS! ---
     tab_global, tab_pais, tab_comparar, tab_factores, tab_arquitectura = st.tabs([
         "🌍 Panorama Global", 
         "📈 Análisis por País",
