@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.4 - Preguntas de Análisis Corregidas)
+Panel COVID-19 - Análisis (Versión 3.5 - Correlaciones Corregidas)
 Este dashboard consulta la API para visualización y está diseñado
 para contar la historia del proyecto y los datos.
 """
@@ -695,30 +695,37 @@ def render_tab_comparativo(df_latest, metrics_df):
                 
                 if selected_countries and selected_metrics_table:
                     st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
-                    comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
-                    table_data = comp_data.set_index('location')[selected_metrics_table]
-                    table_data.columns = [translate_column(c) for c in table_data.columns]
-                    st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
-
-                    st.markdown("---")
-                    st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
-                    df_to_norm = comp_data.set_index('location')[selected_metrics_table].dropna()
-                    if not df_to_norm.empty:
-                        df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
-                        df_norm.columns = [translate_column(c) for c in df_norm.columns]
-                        
-                        fig_heat = px.imshow(
-                            df_norm.T, 
-                            text_auto=True,
-                            aspect="auto",
-                            color_continuous_scale='RdYlGn', 
-                            title="Comparación Normalizada (0=Peor, 1=Mejor)"
-                        )
-                        fig_heat.update_traces(texttemplate="%{z:.2f}") 
-                        fig_heat.update_layout(height=max(400, len(selected_metrics_table) * 70))
-                        st.plotly_chart(fig_heat, use_container_width=True) 
+                    
+                    # --- CORRECCIÓN KeyError en Tabla Comparativa ---
+                    # Filtra solo las columnas que SÍ existen en el df_latest
+                    existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
+                    if not existing_cols_table:
+                        st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
                     else:
-                        st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
+                        comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
+                        table_data = comp_data.set_index('location')[existing_cols_table] # Usa solo columnas existentes
+                        table_data.columns = [translate_column(c) for c in table_data.columns]
+                        st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
+
+                        st.markdown("---")
+                        st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
+                        df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() # Usa solo columnas existentes
+                        if not df_to_norm.empty:
+                            df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
+                            df_norm.columns = [translate_column(c) for c in df_norm.columns]
+                            
+                            fig_heat = px.imshow(
+                                df_norm.T, 
+                                text_auto=True,
+                                aspect="auto",
+                                color_continuous_scale='RdYlGn', 
+                                title="Comparación Normalizada (0=Peor, 1=Mejor)"
+                            )
+                            fig_heat.update_traces(texttemplate="%{z:.2f}") 
+                            fig_heat.update_layout(height=max(400, len(existing_cols_table) * 70))
+                            st.plotly_chart(fig_heat, use_container_width=True) 
+                        else:
+                            st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
 
                 elif not selected_countries:
                     st.warning("Por favor, selecciona al menos un país en el filtro de arriba.")
@@ -743,9 +750,9 @@ def render_tab_factores(df_latest, metrics_df):
     # ¡CORREGIDO! Usando métricas "seguras" que sabemos que existen
     HISTORIAS = {
         "¿La vacunación se correlaciona con menos muertes por millón?": ("people_fully_vaccinated_per_hundred", "total_deaths_per_million"),
-        "¿Países con más casos tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
-        "¿La población total influyó en las muertes por millón?": ("population", "total_deaths_per_million"),
-        "¿Se vacunó más en países con más casos?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred")
+        "¿Los países con más casos (por millón) también tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
+        "¿Países con poblaciones más grandes tuvieron más muertes por millón?": ("population", "total_deaths_per_million"),
+        "¿Los países con más casos (por millón) se vacunaron más?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred")
     }
     
     with st.container(border=False):
