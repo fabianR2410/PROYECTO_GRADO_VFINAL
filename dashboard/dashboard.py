@@ -847,7 +847,7 @@ def main():
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
-        st.markdown('<div class="main-title">🌍 Panel COVID-19 - Proyecto de Grado</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">🌍 Panel COVID-19 -</div>', unsafe_allow_html=True)
         st.markdown('<div class="subtitle">Análisis de datos, arquitectura de sistema y despliegue en la nube</div>', unsafe_allow_html=True)
     with col2:
         if check_api_status():
