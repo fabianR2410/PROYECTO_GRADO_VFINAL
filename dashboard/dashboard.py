@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.1 - Storytelling + README)
+Panel COVID-19 - Análisis (Versión 3.2 - Storytelling Completo)
 Este dashboard consulta la API para visualización y está diseñado
 para contar la historia del proyecto y los datos.
 """
@@ -22,7 +22,7 @@ from functools import reduce
 # =============================================================================
 # Esto DEBE ser el primer comando de Streamlit
 st.set_page_config(
-    page_title="Panel COVID-19 - Análisis",
+    page_title="Panel COVID-19 (Proyecto de Grado)",
     page_icon="🌍",
     layout="wide" 
 )
@@ -733,16 +733,17 @@ def render_tab_comparativo(df_latest, metrics_df):
 # --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡NUEVA!) ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES"""
-    st.markdown("Analiza las relaciones globales entre métricas a nivel de país (excluyendo agregados).")
+    st.markdown("Analiza las relaciones globales entre métricas socioeconómicas y los resultados de la pandemia.")
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
     # --- ¡MEJORA! ANÁLISIS GUIADO (STORYTELLING) ---
     HISTORIAS = {
-        "¿La riqueza protegió a los países?": ("gdp_per_capita", "total_deaths_per_million"),
-        "¿La vacunación detuvo las muertes?": ("people_fully_vaccinated_per_hundred", "total_deaths_per_million"),
-        "¿La edad de la población fue un factor?": ("median_age", "total_deaths_per_million"),
-        "¿El desarrollo influyó en la vacunación?": ("human_development_index", "people_fully_vaccinated_per_hundred")
+        "¿La riqueza influyó en la vacunación?": ("gdp_per_capita", "people_fully_vaccinated_per_hundred"),
+        "¿La edad de la población fue un factor de riesgo?": ("median_age", "total_deaths_per_million"),
+        "¿Los sistemas de salud (camas) marcaron la diferencia?": ("hospital_beds_per_thousand", "total_deaths_per_million"),
+        "¿La diabetes (comorbilidad) aumentó el riesgo?": ("diabetes_prevalence", "total_deaths_per_million"),
+        "¿El desarrollo humano se correlaciona con la esperanza de vida?": ("human_development_index", "life_expectancy")
     }
     
     with st.container(border=False):
@@ -768,21 +769,105 @@ def render_tab_factores(df_latest, metrics_df):
     st.markdown("---")
     
     # --- Resto de la pestaña (Correlaciones y Estadísticas) ---
-    with st.expander("Ver Análisis Estadístico y Matriz de Correlación (Avanzado)"):
+    with st.expander("Ver Análisis Estadístico y Exploración Manual (Avanzado)"):
         
-        # (Tu código de Pestaña 4: Estadísticas)
+        # --- (Tu código de Pestaña 4: Estadísticas) ---
         with st.container(border=False): 
             st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
-            # ... (Tu código de 'estadisticas_global' va aquí) ...
-            st.write("Tu código de estadísticas (Histograma, Boxplot) va aquí.")
+            
+            # --- Filtros ---
+            with st.container(border=False):
+                st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
+                col1, col2, col3 = st.columns([2, 3, 1])
+                with col1:
+                    continents_list = sorted(latest_countries_only['continent'].dropna().unique().tolist()) if 'continent' in latest_countries_only.columns else []
+                    options_continent = ["Global (Todos)"] + continents_list
+                    selected_continent = st.selectbox("Filtrar por Continente", options_continent, key="stats_continent")
+                with col2:
+                    selected_metric, selected_name = create_translated_selectbox(
+                        "Métrica", metrics_df, 
+                        exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
+                        key="metric_stats", default_col='total_cases_per_million'
+                    )
+                with col3:
+                    st.markdown("<br>", unsafe_allow_html=True) 
+                    include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
+
+            title_suffix = ""
+            if selected_continent != "Global (Todos)":
+                data_to_analyze = latest_countries_only[latest_countries_only['continent'] == selected_continent]
+                title_suffix = f"({selected_continent})"
+            else:
+                data_to_analyze = latest_countries_only
+                title_suffix = "(Global)"
+            
+            # (El resto de tu lógica de 'estadisticas_global'...)
+            data_df = pd.DataFrame() 
+            values = pd.Series(dtype=float)
+            if selected_metric and selected_metric in data_to_analyze.columns:
+                data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
+                if not include_outliers:
+                    if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
+                        Q1 = data_df[selected_metric].quantile(0.25)
+                        Q3 = data_df[selected_metric].quantile(0.75)
+                        IQR = Q3 - Q1 if (Q3 - Q1) > 0 else 1 
+                        lower_bound = Q1 - 1.5 * IQR
+                        upper_bound = Q3 + 1.5 * IQR
+                        data_df = data_df[(data_df[selected_metric] >= lower_bound) & (data_df[selected_metric] <= upper_bound)]
+                if not data_df.empty:
+                    values = data_df[selected_metric]
+            
+            main_col1, main_col2 = st.columns([1, 1])
+            with main_col1:
+                st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
+                if pd.api.types.is_numeric_dtype(values) and not values.empty:
+                    stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
+                    with stats_col1: st.metric("Media", formatar_numero_grande(values.mean()))
+                    with stats_col2: st.metric("Mediana", formatar_numero_grande(values.median()))
+                    with stats_col3: st.metric("Desv. Std", formatar_numero_grande(values.std()))
+                    with stats_col4: st.metric("N (Países)", f"{len(values)}")
+            with main_col2:
+                st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
+                if pd.api.types.is_numeric_dtype(values) and not values.empty:
+                    fig_hist = px.histogram(data_df, x=selected_metric, nbins=50, title=f"Histograma", template='plotly_white', color="continent", hover_data=['location'])
+                    fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
+                    fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
+                    st.plotly_chart(fig_hist, use_container_width=True) 
 
         st.markdown("---")
 
-        # (Tu código de Pestaña 5: Correlaciones)
+        # --- (Tu código de Pestaña 5: Correlaciones) ---
         with st.container(border=False):
-            st.markdown('<div class="section-title">🔗 Correlaciones (Global)</div>', unsafe_allow_html=True)
-            # ... (Tu código de 'correlaciones_global' va aquí) ...
-            st.write("Tu código de Matriz de Correlación va aquí.")
+            st.markdown('<div class="section-title">🔗 Exploración de Correlaciones (Manual)</div>', unsafe_allow_html=True)
+            main_col1, main_col2 = st.columns(2)
+            with main_col1:
+                st.markdown('<div class="section-title" style="margin-top: 20px;">Matriz de Correlación</div>', unsafe_allow_html=True)
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        selected_metrics, selected_names = create_translated_multiselect(
+                            "Métricas (Matriz)", metrics_df, 
+                            exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
+                            default_cols=['total_cases_per_million', 'total_deaths_per_million', 'gdp_per_capita', 'life_expectancy', 'positive_rate'],
+                            key="metrics_corr"
+                        )
+                    with col2:
+                        method = st.selectbox("Método", ["Spearman", "Pearson"])
+                if len(selected_metrics) >= 2:
+                    # ... (Tu lógica de matriz de correlación va aquí) ...
+                    st.write("Tu matriz de correlación va aquí.")
+            with main_col2:
+                st.markdown('<div class="section-title" style="margin-top: 20px;">Dispersión Detallada</div>', unsafe_allow_html=True)
+                with st.container():
+                    col_x, col_y = st.columns(2)
+                    with col_x:
+                        selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='gdp_per_capita')
+                    with col_y:
+                        selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
+                if selected_x and selected_y:
+                    # ... (Tu lógica de scatter plot manual va aquí) ...
+                    st.write("Tu scatter plot manual va aquí.")
+
 
 # --- ¡NUEVA FUNCIÓN! Pestaña 5: Arquitectura ---
 def render_tab_arquitectura():
@@ -822,7 +907,7 @@ def render_tab_arquitectura():
             * **Optimización:** Se aplicaron varias técnicas para asegurar una experiencia de usuario fluida:
                 1.  **`st.cache_data`**: Las llamadas a la API se guardan en caché para evitar recargas innecesarias.
                 2.  **Manejo de "Cold Start"**: Se implementó un `timeout` de 45 segundos, ya que la API en Render (plan gratuito) se "duerme" y necesita tiempo para despertar.
-                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, reduciendo drásticamente los tiempos de carga.
+                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, mejorando drásticamente la velocidad.
             """)
             st.link_button("Ver el Repositorio en GitHub", "https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL")
     
@@ -831,6 +916,8 @@ def render_tab_arquitectura():
     with st.container(border=False):
         st.markdown("### 🙏 Agradecimientos")
         st.markdown("""
+        Quiero extender mi más sincero agradecimiento a mi director de proyecto, a los miembros del jurado por su tiempo y orientación, y a mi familia por su apoyo incondicional durante el desarrollo de este trabajo de grado.
+        
         Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube (CI/CD).
         """)
 
@@ -847,7 +934,7 @@ def main():
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
-        st.markdown('<div class="main-title">🌍 Panel COVID-19 -</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">🌍 Panel COVID-19 - Proyecto de Grado</div>', unsafe_allow_html=True)
         st.markdown('<div class="subtitle">Análisis de datos, arquitectura de sistema y despliegue en la nube</div>', unsafe_allow_html=True)
     with col2:
         if check_api_status():
