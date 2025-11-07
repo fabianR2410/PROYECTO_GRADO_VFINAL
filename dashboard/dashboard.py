@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 2.0 - Refactorizada)
+Panel COVID-19 - Análisis (Versión 2.1 - Corregida y Optimizada)
 Este dashboard consulta la API para visualización.
 """
 import streamlit as st
@@ -15,6 +15,16 @@ import requests
 import time
 import statsmodels.api as sm
 from functools import reduce 
+
+# =============================================================================
+# --- 0. CONFIGURACIÓN DE PÁGINA (¡CORREGIDO!) ---
+# =============================================================================
+# Esto DEBE ser el primer comando de Streamlit
+st.set_page_config(
+    page_title="Panel COVID-19",
+    page_icon="🌍",
+    layout="wide" 
+)
 
 # =============================================================================
 # --- 1. CONFIGURACIÓN Y CONSTANTES ---
@@ -204,7 +214,7 @@ def load_dashboard_data():
         st.error(f"Error de Conexión con la API: {e}. La API en Render puede estar 'despertando'. Por favor, refresca la página en 30 segundos.")
         return None, None, None
 
-# --- ¡NUEVA FUNCIÓN! ---
+# --- ¡NUEVA FUNCIÓN! (Para Pestaña 2) ---
 @st.cache_data(ttl=600) # Caché por 10 minutos
 def get_full_history(country):
     """
@@ -224,8 +234,12 @@ def get_full_history(country):
             return pd.DataFrame()
             
         df = pd.DataFrame(data)
-        df['date'] = pd.to_datetime(df['date'])
-        return df.set_index('date') # Devolver con índice de fecha
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+            return df.set_index('date') # Devolver con índice de fecha
+        else:
+            st.error("La respuesta de la API no contiene la columna 'date'.")
+            return pd.DataFrame()
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error cargando el historial para '{country}': {e}")
@@ -251,8 +265,10 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
         st.markdown('<div class="section-title">⚙️ Filtros de Evolución</div>', unsafe_allow_html=True)
         col1, col2, col3 = st.columns([2, 3, 2])
         
+        # Lista de países filtrada (sin agregados)
         aggregates_for_selector = [agg.title() for agg in AGGREGATES]
         filtered_countries = [c for c in countries_list if c not in aggregates_for_selector]
+        # Aseguramos que 'World' (del endpoint) esté disponible
         if 'World' not in filtered_countries:
             filtered_countries.insert(0, 'World')
         
@@ -372,8 +388,8 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
 
             # --- Tabla de Datos ---
             with st.expander("Ver datos tabulados"):
-                # ... (Tu código de tabla va aquí) ...
-                st.dataframe(df_filtrado[selected_metrics].rename(columns=TRANSLATIONS).sort_index(ascending=False))
+                cols_to_show_in_table = [col for col in selected_metrics if col in df_filtrado.columns]
+                st.dataframe(df_filtrado[cols_to_show_in_table].rename(columns=TRANSLATIONS).sort_index(ascending=False))
                 
     elif not selected_metrics:
         st.info("Selecciona al menos una métrica para graficar.")
@@ -401,13 +417,7 @@ def main():
     """
     Punto de entrada principal de la aplicación Streamlit.
     """
-    # --- ¡CORREGIDO! page_icon cambiado a emoji ---
-    st.set_page_config(
-        page_title="Panel COVID-19",
-        page_icon="🌍",
-        layout="wide" 
-    )
-
+    
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
@@ -501,7 +511,7 @@ def main():
 
     # --- Pie de Página ---
     st.markdown("---")
-    unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in df_latest.columns else 0
+    unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
     st.markdown(f"""
         <div style='text-align: center; color: #6c757d; padding: 20px;'>
             <p><strong>Fuente de Datos:</strong> API COVID-19 (vía Our World in Data) |
