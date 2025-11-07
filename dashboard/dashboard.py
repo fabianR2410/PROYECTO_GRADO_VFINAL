@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.8 - Correlaciones Corregidas)
-Este dashboard consulta la API para visualización y está diseñado
-para contar la historia del proyecto y los datos.
+Panel COVID-19 - Análisis (Versión 3.9 - Comparación de Series de Tiempo)
+
+- ¡NUEVO! Pestaña de Comparación de Evolución Temporal (Tab 3) 
+  ahora es funcional y llama al endpoint /covid/compare-timeseries.
 """
 import streamlit as st
 import pandas as pd
@@ -390,6 +391,58 @@ def get_full_history(country):
         st.error(f"Error cargando el historial para '{country}': {e}")
         return pd.DataFrame()
 
+# --- ¡NUEVA FUNCIÓN! (Para Pestaña 3) ---
+@st.cache_data(ttl=600) # Caché por 10 minutos
+def get_comparison_timeseries(countries_str, metric, start_date, end_date):
+    """
+    Obtiene la serie de tiempo de UNA métrica para VARIOS países.
+    Llama al endpoint /covid/compare-timeseries.
+    Devuelve un DataFrame "largo" listo para Plotly.
+    """
+    try:
+        api_params = {
+            'countries': countries_str,
+            'metric': metric,
+            'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
+            'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
+        }
+        
+        timeout_largo = 45 # Timeout largo para el "cold start" de Render
+        response = requests.get(f"{API_BASE_URL}/covid/compare-timeseries", params=api_params, timeout=timeout_largo)
+        response.raise_for_status()
+        
+        data = response.json()
+        comparison_data = data.get('comparison_data', {})
+        
+        # --- Lógica de Transformación: Anidado -> Largo ---
+        all_dfs = []
+        for country, records in comparison_data.items():
+            if records: # Asegurarse de que la lista no esté vacía
+                df_country = pd.DataFrame(records)
+                df_country['location'] = country
+                all_dfs.append(df_country)
+        
+        if not all_dfs:
+            # No es un error, solo no hay datos para esos criterios
+            return pd.DataFrame()
+            
+        df_long = pd.concat(all_dfs, ignore_index=True)
+        
+        # Renombrar la columna de la métrica a un valor genérico para graficar
+        if metric in df_long.columns:
+            df_long.rename(columns={metric: 'metric_value'}, inplace=True)
+        
+        if 'date' in df_long.columns:
+            df_long['date'] = pd.to_datetime(df_long['date'])
+            return df_long
+        else:
+            st.error("La respuesta de la API de comparación no contiene 'date'.")
+            return pd.DataFrame()
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error cargando datos de comparación: {e}")
+        return pd.DataFrame()
+
 # =============================================================================
 # --- 5. FUNCIONES DE PESTAÑA (Lógica de cada Tab) ---
 # =============================================================================
@@ -622,7 +675,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         st.info("Selecciona al menos una métrica para graficar.")
 
 # --- FUNCIÓN Pestaña 3: Comparaciones ---
-def render_tab_comparativo(df_latest, metrics_df): 
+def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date): 
     """LÓGICA PARA LA PESTAÑA 3: COMPARACIONES (PAÍSES)"""
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
@@ -732,11 +785,69 @@ def render_tab_comparativo(df_latest, metrics_df):
                 else:
                     st.info("Selecciona al menos una métrica para la tabla/heatmap.")
     
+    # --- ¡SECCIÓN ACTUALIZADA! ---
     with tab_evolucion:
         st.markdown('<div class="section-title" style="margin-top: 20px;">📈 Evolución Temporal Comparada</div>', unsafe_allow_html=True)
-        st.warning("¡Mejora futura! Esta sección requiere un nuevo endpoint en la API (`/covid/compare-timeseries`) para ser eficiente.")
-        st.info("Esta sección mostraría un gráfico de líneas comparando una métrica (ej. 'Nuevos Casos por Millón') a lo largo del tiempo para los países seleccionados.")
-        # Aquí iría el código para llamar al nuevo endpoint y renderizar el px.line(..., color='location')
+        
+        # --- Filtros para esta pestaña ---
+        evol_col1, evol_col2, evol_col3 = st.columns([2, 3, 1])
+        
+        with evol_col1:
+            selected_metric_evol, selected_name_evol = create_translated_selectbox(
+                "Métrica a Comparar",
+                metrics_df, 
+                exclude_cols=STATIC_METRICS_EXCLUDE_LIST, 
+                key="metric_evol_comp",
+                default_col='new_cases_smoothed_per_million'
+            )
+        
+        with evol_col2:
+            date_range_evol = st.date_input(
+                "Rango de Fechas (Evolución)",
+                value=(data_min_date, data_max_date), 
+                min_value=data_min_date, max_value=data_max_date,
+                key="evol_date_range_comp"
+            )
+        
+        with evol_col3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            use_log_evol = st.checkbox("Escala Logarítmica", key="log_evol_comp")
+
+        # --- Lógica de carga y gráfico ---
+        # 'selected_countries' viene de los filtros de arriba
+        if not selected_countries:
+            st.warning("Selecciona al menos un país en el filtro principal 'Filtros de Comparación'.")
+        elif not selected_metric_evol:
+            st.info("Selecciona una métrica para comparar.")
+        elif len(date_range_evol) != 2:
+            st.warning("Selecciona un rango de fechas válido.")
+        else:
+            with st.spinner(f"Cargando series de tiempo para {len(selected_countries)} países..."):
+                # Unir países en string
+                countries_str = ",".join(selected_countries)
+                start_date, end_date = date_range_evol
+                
+                # Llamar a la nueva función helper
+                df_comp_long = get_comparison_timeseries(countries_str, selected_metric_evol, start_date, end_date)
+                
+                if df_comp_long.empty:
+                    st.warning("No se encontraron datos para los criterios seleccionados.")
+                else:
+                    # Graficar
+                    fig_evol = px.line(
+                        df_comp_long,
+                        x='date',
+                        y='metric_value',
+                        color='location',
+                        title=f"Evolución de {selected_name_evol}",
+                        labels={'metric_value': selected_name_evol, 'date': 'Fecha', 'location': 'País'},
+                        template='plotly_white',
+                        log_y=use_log_evol,
+                        hover_name='location',
+                        hover_data={'date': '|%Y-%m-%d', 'metric_value': ':.1f'}
+                    )
+                    fig_evol.update_layout(height=600, hovermode='x unified')
+                    st.plotly_chart(fig_evol, use_container_width=True)
 
 
 # --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡CORREGIDA!) ---
@@ -1065,7 +1176,9 @@ def main():
     with tab_pais:
         render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
-        render_tab_comparativo(df_latest, metrics_df) 
+        # --- ¡CAMBIO AQUÍ! ---
+        # Pasamos las fechas min/max para el selector de la nueva pestaña
+        render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date) 
     with tab_factores:
         render_tab_factores(df_latest, metrics_df) 
     with tab_arquitectura:
