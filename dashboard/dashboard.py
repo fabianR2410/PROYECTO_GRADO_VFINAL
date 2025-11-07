@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.3 - Corrección KeyError)
+Panel COVID-19 - Análisis (Versión 3.4 - Preguntas de Análisis Corregidas)
 Este dashboard consulta la API para visualización y está diseñado
 para contar la historia del proyecto y los datos.
 """
@@ -160,13 +160,6 @@ TRANSLATIONS = {
     'excess_mortality_cumulative': 'Mortalidad Excedente Acumulada',
     'excess_mortality_cumulative_absolute': 'Mortalidad Excedente Acumulada Absoluta',
     'excess_mortality_cumulative_per_million': 'Mortalidad Excedente Acumulada por Millón',
-
-    # Características temporales
-    'year': 'Año',
-    'month': 'Mes',
-    'day': 'Día',
-    'day_of_week': 'Día de la Semana',
-    'week_of_year': 'Semana del Año',
 
     # Características calculadas
     'cases_per_million': 'Casos por Millón',
@@ -739,7 +732,7 @@ def render_tab_comparativo(df_latest, metrics_df):
         # Aquí iría el código para llamar al nuevo endpoint y renderizar el px.line(..., color='location')
 
 
-# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡NUEVA!) ---
+# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡CORREGIDA!) ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES (¡COMPLETA!)"""
     st.markdown("Analiza las relaciones globales entre métricas socioeconómicas y los resultados de la pandemia.")
@@ -747,12 +740,12 @@ def render_tab_factores(df_latest, metrics_df):
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
     # --- ¡MEJORA! ANÁLISIS GUIADO (STORYTELLING) ---
+    # ¡CORREGIDO! Usando métricas "seguras" que sabemos que existen
     HISTORIAS = {
-        "¿La riqueza influyó en la vacunación?": ("gdp_per_capita", "people_fully_vaccinated_per_hundred"),
-        "¿La edad de la población fue un factor de riesgo?": ("median_age", "total_deaths_per_million"),
-        "¿Los sistemas de salud (camas) marcaron la diferencia?": ("hospital_beds_per_thousand", "total_deaths_per_million"),
-        "¿La diabetes (comorbilidad) aumentó el riesgo?": ("diabetes_prevalence", "total_deaths_per_million"),
-        "¿El desarrollo humano se correlaciona con la esperanza de vida?": ("human_development_index", "life_expectancy")
+        "¿La vacunación se correlaciona con menos muertes por millón?": ("people_fully_vaccinated_per_hundred", "total_deaths_per_million"),
+        "¿Países con más casos tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
+        "¿La población total influyó en las muertes por millón?": ("population", "total_deaths_per_million"),
+        "¿Se vacunó más en países con más casos?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred")
     }
     
     with st.container(border=False):
@@ -876,7 +869,7 @@ def render_tab_factores(df_latest, metrics_df):
                         selected_metrics, selected_names = create_translated_multiselect(
                             "Métricas (Matriz)", metrics_df, 
                             exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
-                            default_cols=['total_cases_per_million', 'total_deaths_per_million', 'gdp_per_capita', 'life_expectancy', 'positive_rate'],
+                            default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred', 'population'],
                             key="metrics_corr"
                         )
                     with col2:
@@ -903,7 +896,7 @@ def render_tab_factores(df_latest, metrics_df):
                 with st.container():
                     col_x, col_y = st.columns(2)
                     with col_x:
-                        selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='gdp_per_capita')
+                        selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='total_cases_per_million')
                     with col_y:
                         selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
                 if selected_x and selected_y:
