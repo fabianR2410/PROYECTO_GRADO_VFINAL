@@ -750,9 +750,9 @@ def render_tab_factores(df_latest, metrics_df):
     # ¡CORREGIDO! Usando métricas "seguras" que sabemos que existen
     HISTORIAS = {
         "¿La vacunación se correlaciona con menos muertes por millón?": ("people_fully_vaccinated_per_hundred", "total_deaths_per_million"),
-        "¿Los países con más casos (por millón) también tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
-        "¿Países con poblaciones más grandes tuvieron más muertes por millón?": ("population", "total_deaths_per_million"),
-        "¿Los países con más casos (por millón) se vacunaron más?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred")
+    "¿Los países con más casos (por millón) también tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
+    "¿Países con poblaciones más grandes tuvieron más muertes por millón?": ("population", "total_deaths_per_million"),
+    "¿Los países con más casos (por millón) se vacunaron más?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred")
     }
     
     with st.container(border=False):
