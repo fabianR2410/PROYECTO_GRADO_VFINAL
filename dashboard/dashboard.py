@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.2 - Storytelling Completo)
+Panel COVID-19 - Análisis (Versión 3.3 - Corrección KeyError)
 Este dashboard consulta la API para visualización y está diseñado
 para contar la historia del proyecto y los datos.
 """
@@ -762,18 +762,37 @@ def render_tab_factores(df_latest, metrics_df):
         # Obtiene los ejes X e Y de la historia
         default_x, default_y = HISTORIAS[historia_seleccionada]
         
-        st.markdown(f"**Análisis:** {translate_column(default_x)} (Eje X) vs. {translate_column(default_y)} (Eje Y)")
+        # --- ¡INICIA LA CORRECCIÓN DE KEYERROR! ---
+        # Verificar si las columnas requeridas existen en el DataFrame
+        if default_x in latest_countries_only.columns and default_y in latest_countries_only.columns:
+            st.markdown(f"**Análisis:** {translate_column(default_x)} (Eje X) vs. {translate_column(default_y)} (Eje Y)")
+            
+            # Crear una copia segura para el gráfico
+            df_scatter = latest_countries_only.dropna(subset=[default_x, default_y])
+            
+            fig_scatter = px.scatter(
+                df_scatter,
+                x=default_x, y=default_y, 
+                title=f"{translate_column(default_x)} vs. {translate_column(default_y)}",
+                color="continent",      
+                hover_name="location",   
+                trendline="ols", template='plotly_white', height=600,
+                hover_data={default_x:':,.1f', default_y:':,.1f', 'continent':False}
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
         
-        fig_scatter = px.scatter(
-            latest_countries_only.dropna(subset=[default_x, default_y]),
-            x=default_x, y=default_y, 
-            title=f"{translate_column(default_x)} vs. {translate_column(default_y)}",
-            color="continent",      
-            hover_name="location",   
-            trendline="ols", template='plotly_white', height=600,
-            hover_data={default_x:':,.1f', default_y:':,.1f', 'continent':False}
-        )
-        st.plotly_chart(fig_scatter, use_container_width=True) 
+        else:
+            # Mostrar un mensaje de error amigable si faltan las columnas
+            missing_cols = []
+            if default_x not in latest_countries_only.columns:
+                missing_cols.append(translate_column(default_x))
+            if default_y not in latest_countries_only.columns:
+                missing_cols.append(translate_column(default_y))
+            
+            st.error(f"No se puede generar este análisis. Faltan las siguientes columnas en los datos procesados: **{', '.join(missing_cols)}**")
+            st.warning("Esto puede deberse a que el script de ETL (data_cleaner.py) está eliminando estas columnas por tener demasiados valores nulos.")
+        # --- FIN DE LA CORRECCIÓN ---
+
 
     st.markdown("---")
     
@@ -786,7 +805,7 @@ def render_tab_factores(df_latest, metrics_df):
             
             # --- Filtros ---
             with st.container(border=False):
-                st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
+                #st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
                 col1, col2, col3 = st.columns([2, 3, 1])
                 with col1:
                     continents_list = sorted(latest_countries_only['continent'].dropna().unique().tolist()) if 'continent' in latest_countries_only.columns else []
@@ -896,6 +915,7 @@ def render_tab_factores(df_latest, metrics_df):
                         hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
                     )
                     st.plotly_chart(fig_scatter, use_container_width=True) 
+
 
 # --- ¡NUEVA FUNCIÓN! Pestaña 5: Arquitectura ---
 def render_tab_arquitectura():
