@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 2.3 - Corrección de sintaxis)
+Panel COVID-19 - Análisis (Versión 2.0 - Refactorizada)
 Este dashboard consulta la API para visualización.
 """
 import streamlit as st
@@ -15,15 +15,6 @@ import requests
 import time
 import statsmodels.api as sm
 from functools import reduce 
-
-# =============================================================================
-# --- CONFIGURACIÓN DE PÁGINA (DEBE SER EL PRIMER COMANDO ST) ---
-# =============================================================================
-st.set_page_config(
-    page_title="Panel COVID-19",
-    page_icon="🌍",
-    layout="wide" 
-)
 
 # =============================================================================
 # --- 1. CONFIGURACIÓN Y CONSTANTES ---
@@ -62,18 +53,6 @@ CUMULATIVE_METRICS_EXCLUDE_LIST = [
 PIE_ALLOWED_METRICS = [
     'total_cases', 'total_deaths', 'people_vaccinated', 
     'people_fully_vaccinated', 'total_boosters'
-]
-
-# --- ¡NUEVA LISTA! ---
-# Métricas técnicas que NUNCA queremos mostrar en los selectores
-TECHNICAL_METRICS_TO_HIDE = [
-    'mes',
-    'new_cases_lag1',
-    'new_cases_lag14',
-    'new_cases_lag7',
-    'new_cases_ma14',
-    'new_cases_ma7'
-    # Agrega aquí cualquier otra métrica interna que no deba ver el usuario
 ]
 
 # =============================================================================
@@ -134,8 +113,8 @@ def get_translated_columns(df, exclude_cols=[], include_only=[]):
                    if c in cols_to_search] 
     return {col: translate_column(col) for col in numeric_cols}
 
-def create_translated_selectbox(label, df, exclude_cols=[], include_only=[], key=None, index=0, default_col=None, in_sidebar=False): 
-    """Crear selectbox con opciones traducidas (en sidebar o main)."""
+def create_translated_selectbox(label, df, exclude_cols=[], include_only=[], key=None, index=0, default_col=None): 
+    """Crear selectbox con opciones traducidas."""
     cols_dict = get_translated_columns(df, exclude_cols=exclude_cols, include_only=include_only) 
     if not cols_dict:
         st.warning(f"No hay métricas disponibles para '{label}' con los filtros aplicados.")
@@ -148,112 +127,35 @@ def create_translated_selectbox(label, df, exclude_cols=[], include_only=[], key
             index = 0
     elif index >= len(options_translated):
         index = 0
-    
-    # Decidir dónde crear el widget
-    widget_location = st.sidebar if in_sidebar else st
-    selected_translated = widget_location.selectbox(label, options_translated, index=index, key=key)
-    
+    selected_translated = st.selectbox(label, options_translated, index=index, key=key)
     if not selected_translated:
         return None, None
     original_col = [k for k, v in cols_dict.items() if v == selected_translated][0]
     return original_col, selected_translated
 
-def create_translated_multiselect(label, df, exclude_cols=[], include_only=[], default_cols=[], key=None, in_sidebar=False): 
-    """Crear multiselect con opciones traducidas (en sidebar o main)."""
+def create_translated_multiselect(label, df, exclude_cols=[], include_only=[], default_cols=[], key=None): 
+    """Crear multiselect con opciones traducidas."""
     cols_dict = get_translated_columns(df, exclude_cols=exclude_cols, include_only=include_only) 
     if not cols_dict:
         st.warning(f"No hay métricas disponibles para '{label}' con los filtros aplicados.")
         return [], []
     options_translated = list(cols_dict.values())
     defaults_translated = [translate_column(col) for col in default_cols if col in cols_dict]
-    
-    # Decidir dónde crear el widget
-    widget_location = st.sidebar if in_sidebar else st
-    selected_translated = widget_location.multiselect(label, options_translated, default=defaults_translated, key=key)
-    
+    selected_translated = st.multiselect(label, options_translated, default=defaults_translated, key=key)
     original_cols = [k for k, v in cols_dict.items() if v in selected_translated]
     return original_cols, selected_translated
 
 # =============================================================================
-# --- 3. CSS PERSONALIZADO (¡MEJORADO!) ---
+# --- 3. CSS PERSONALIZADO ---
 # =============================================================================
-# Esto ahora se ejecuta DESPUÉS de st.set_page_config, lo cual es correcto
 st.markdown("""
     <style>
-    /* --- Fuente Principal (Opcional, pero elegante) --- */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    html, body, [class*="st-"] {
-        font-family: 'Inter', sans-serif;
-    }
-
-    /* --- Títulos --- */
-    .main-title {
-        font-size: 38px; /* Más grande */
-        font-weight: 700;
-        margin-bottom: -10px; /* Acercar el subtítulo */
-    }
-    .subtitle {
-        font-size: 18px;
-        color: #6c757d; /* Un gris suave */
-        margin-bottom: 20px;
-    }
-    .section-title {
-        font-size: 24px;
-        font-weight: 600;
-        margin-bottom: 15px;
-        border-bottom: 2px solid #f0f0f0; /* Línea sutil debajo */
-        padding-bottom: 5px;
-    }
-    
-    /* --- Badges de Estado de API --- */
+    /* ... (Tu CSS completo va aquí) ... */
+    .main-title { font-size: 32px; font-weight: 700; }
     .status-badge {
-        display: inline-block;
-        padding: 6px 14px;
-        border-radius: 25px;
-        font-size: 14px;
-        font-weight: 600;
-        text-align: center;
-        width: 100%; /* Ocupa el ancho de su columna */
-        margin-top: 10px; /* Alinea mejor con el título */
+        display: inline-block; padding: 4px 12px; border-radius: 20px;
+        font-size: 12px; font-weight: 600; background-color: #28a745; color: white;
     }
-    .status-badge.online {
-        background-color: #d4edda; /* Verde pastel */
-        color: #155724; /* Verde oscuro */
-        border: 1px solid #c3e6cb;
-    }
-    .status-badge.offline {
-        background-color: #f8d7da; /* Rojo pastel */
-        color: #721c24; /* Rojo oscuro */
-        border: 1px solid #f5c6cb;
-    }
-
-    /* --- ESTILO DE "CARDS" PARA MÉTRICAS (KPIs) --- */
-    /* Apunta a los contenedores con borde (donde están las métricas) */
-    div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div {
-        background-color: #ffffff; /* Fondo blanco */
-        border-radius: 12px; /* Bordes más redondeados */
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* Sombra suave */
-        border: none; /* Quitamos el borde por defecto */
-        padding: 1.25rem; /* Espaciado interno */
-        transition: all 0.3s ease; /* Transición suave */
-    }
-    /* Efecto Hover (opcional) */
-    div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div:hover {
-        box-shadow: 0 6px 16px rgba(0,0,0,0.08);
-        transform: translateY(-2px);
-    }
-    
-    /* Ajustes para el texto dentro de las cards (st.metric) */
-    div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div [data-testid="stMetric"] {
-        background-color: transparent; /* El fondo lo da el contenedor */
-    }
-    div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div [data-testid="stMetricLabel"] {
-        font-weight: 600; /* Etiqueta en negrita */
-    }
-    div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div [data-testid="stMetricValue"] {
-        font-size: 2.2rem; /* Valor más grande */
-    }
-    
     </style>
 """, unsafe_allow_html=True)
 
@@ -262,11 +164,10 @@ st.markdown("""
 # =============================================================================
 
 # --- FUNCIÓN DE PING ---
-@st.cache_data(ttl=60) # Chequeo rápido
 def check_api_status():
     """Comprueba si la API en API_BASE_URL está en línea."""
     try:
-        resp = requests.get(f"{API_BASE_URL}/", timeout=3)
+        resp = requests.get(f"{API_BASE_URL}/", timeout=2)
         return resp.status_code == 200
     except requests.exceptions.RequestException:
         return False
@@ -279,6 +180,7 @@ def load_dashboard_data():
     Se usa un caché de 2 minutos y un timeout largo para el "cold start" de Render.
     """
     try:
+        # ¡CORREGIDO! Timeout aumentado a 45 segundos
         timeout_largo = 45
         
         resp_latest = requests.get(f"{API_BASE_URL}/covid/latest", timeout=timeout_largo)
@@ -298,6 +200,7 @@ def load_dashboard_data():
         return df_latest, countries_list, all_metrics
 
     except requests.exceptions.RequestException as e:
+        # ¡MEJORA! Un error más claro para el usuario.
         st.error(f"Error de Conexión con la API: {e}. La API en Render puede estar 'despertando'. Por favor, refresca la página en 30 segundos.")
         return None, None, None
 
@@ -309,7 +212,7 @@ def get_full_history(country):
     Se llama desde la Pestaña 2 (Evolución).
     """
     try:
-        timeout_largo = 45 
+        timeout_largo = 45 # Timeout largo para el "cold start" de Render
         api_params = {'country': country}
         
         response = requests.get(f"{API_BASE_URL}/covid/country-history", params=api_params, timeout=timeout_largo)
@@ -322,7 +225,7 @@ def get_full_history(country):
             
         df = pd.DataFrame(data)
         df['date'] = pd.to_datetime(df['date'])
-        return df.set_index('date') 
+        return df.set_index('date') # Devolver con índice de fecha
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error cargando el historial para '{country}': {e}")
@@ -335,52 +238,51 @@ def get_full_history(country):
 # --- FUNCIÓN Pestaña 1: Vista General ---
 def vista_general(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 1: VISTA GENERAL"""
-    st.markdown('<div class="section-title">🗺️ Vista Geográfica</div>', unsafe_allow_html=True)
-    # (Omitido por brevedad, tu código original va aquí)
-    st.markdown("*(Tu código de la Pestaña 1 'Vista Geográfica' va aquí)*")
+    # ... (Tu código de la Pestaña 1 va aquí. No necesita cambios) ...
+    st.markdown("### 🗺️ Vista Geográfica")
+    # (Omitido por brevedad)
 
-
-# --- FUNCIÓN Pestaña 2: Evolución por País (¡REFACTORIZADA CON SIDEBAR!) ---
+# --- FUNCIÓN Pestaña 2: Evolución por País (¡REFACTORIZADA!) ---
 def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date):
     """LÓGICA REFACTORIZADA PARA LA PESTAÑA 2: EVOLUCIÓN POR PAÍS"""
 
-    # --- Filtros (AHORA EN EL SIDEBAR) ---
-    st.sidebar.markdown("## ⚙️ Filtros de Evolución")
-    
-    aggregates_for_selector = [agg.title() for agg in AGGREGATES]
-    filtered_countries = [c for c in countries_list if c not in aggregates_for_selector]
-    if 'World' not in filtered_countries:
-        filtered_countries.insert(0, 'World')
-    
-    default_index = filtered_countries.index('Ecuador') if 'Ecuador' in filtered_countries else 0
-    selected_country = st.sidebar.selectbox("País o Región", filtered_countries,
-                                       index=default_index, key="evol_country")
-    
-    selected_metrics, selected_names = create_translated_multiselect(
-        "Métricas a Graficar",
-        metrics_df,
-        exclude_cols=STATIC_METRICS_EXCLUDE_LIST, 
-        default_cols=['new_cases', 'total_cases'], 
-        key="metrics_evol",
-        in_sidebar=True # ¡Importante!
-    )
+    # --- Filtros ---
+    with st.container(border=True): 
+        st.markdown('<div class="section-title">⚙️ Filtros de Evolución</div>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([2, 3, 2])
+        
+        aggregates_for_selector = [agg.title() for agg in AGGREGATES]
+        filtered_countries = [c for c in countries_list if c not in aggregates_for_selector]
+        if 'World' not in filtered_countries:
+            filtered_countries.insert(0, 'World')
+        
+        with col1:
+            default_index = filtered_countries.index('Ecuador') if 'Ecuador' in filtered_countries else 0
+            selected_country = st.selectbox("País o Región", filtered_countries,
+                                           index=default_index, key="evol_country")
+            use_log = st.checkbox("Usar escala logarítmica", key="log_evol")
+            show_raw_data = st.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
+        with col2:
+            selected_metrics, selected_names = create_translated_multiselect(
+                "Métricas a Graficar (Acumulativas o Diarias)",
+                metrics_df,
+                exclude_cols=STATIC_METRICS_EXCLUDE_LIST, 
+                default_cols=['new_cases', 'total_cases'], 
+                key="metrics_evol"
+            )
+        with col3:
+            date_range = st.date_input(
+                "Rango de Fechas",
+                value=(data_min_date, data_max_date), 
+                min_value=data_min_date, max_value=data_max_date,
+                key="evol_date_range"
+            )
 
-    date_range = st.sidebar.date_input(
-        "Rango de Fechas",
-        value=(data_min_date, data_max_date), 
-        min_value=data_min_date, max_value=data_max_date,
-        key="evol_date_range"
-    )
-    
-    st.sidebar.markdown("---")
-    use_log = st.sidebar.checkbox("Usar escala logarítmica", key="log_evol")
-    show_raw_data = st.sidebar.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
-    
-    # --- Contenedor Principal de Resultados (en la pestaña) ---
+    # --- Contenedor Principal de Resultados ---
     if selected_metrics and selected_country and len(date_range) == 2:
         
-        # --- Carga de Datos ---
-        with st.spinner(f"Cargando historial completo para {selected_country}..."):
+        # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
+        with st.spinner(f"Cargando historial completo para {selected_country}... (esto es rápido si está en caché)"):
             df_historia = get_full_history(selected_country)
         
         if df_historia.empty:
@@ -398,38 +300,34 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
             st.warning("No hay datos en el rango de fechas seleccionado.")
             st.stop()
 
-        # Contenedor principal de resultados con borde
         with st.container(border=True):
-            st.markdown(f'<h4>📈 Resultados para {selected_country}</h4>', unsafe_allow_html=True)
+            st.markdown(f'<h4>Resultados para {selected_country}</h4>', unsafe_allow_html=True)
             
             # --- KPIs de Resumen ---
             st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({date_range[0].strftime("%Y-%m-%d")} al {date_range[1].strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True) # type: ignore
             
-            # Usar st.columns para las métricas, pero aplicar el estilo de card
             kpi_cols = st.columns(len(selected_metrics))
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
                 with kpi_cols[i]:
-                    # Cada métrica en su propio contenedor para el estilo "Card"
-                    with st.container(border=True):
-                        if metric in df_filtrado.columns and not df_filtrado[metric].dropna().empty:
-                            if metric in CROSS_SECTIONAL_EXCLUDE_METRICS: 
-                                total_periodo = df_filtrado[metric].sum()
-                                promedio_diario = df_filtrado[metric].mean()
-                                pico_maximo = df_filtrado[metric].max()
-                                st.metric(label=f"Total {name}", value=formatar_numero_grande(total_periodo))
-                                st.metric(label=f"Promedio Diario", value=formatar_numero_grande(promedio_diario))
-                                st.metric(label=f"Pico Máximo", value=formatar_numero_grande(pico_maximo))
-                            else: 
-                                valor_reciente = df_filtrado[metric].dropna().iloc[-1]
-                                valor_inicial = df_filtrado[metric].dropna().iloc[0]
-                                st.metric(label=f"Valor Reciente ({name})", value=formatar_numero_grande(valor_reciente))
-                                st.metric(label=f"Incremento", value=formatar_numero_grande(valor_reciente - valor_inicial), help="Valor al final menos valor al inicio")
-                        else:
-                            st.metric(label=f"Total {name}", value="N/A")
+                    if metric in df_filtrado.columns and not df_filtrado[metric].dropna().empty:
+                        if metric in CROSS_SECTIONAL_EXCLUDE_METRICS: 
+                            total_periodo = df_filtrado[metric].sum()
+                            promedio_diario = df_filtrado[metric].mean()
+                            pico_maximo = df_filtrado[metric].max()
+                            st.metric(label=f"Total {name} (en período)", value=formatar_numero_grande(total_periodo))
+                            st.metric(label=f"Promedio Diario", value=formatar_numero_grande(promedio_diario))
+                            st.metric(label=f"Pico Máximo", value=formatar_numero_grande(pico_maximo))
+                        else: 
+                            valor_reciente = df_filtrado[metric].dropna().iloc[-1]
+                            valor_inicial = df_filtrado[metric].dropna().iloc[0]
+                            st.metric(label=f"Valor Reciente ({name})", value=formatar_numero_grande(valor_reciente))
+                            st.metric(label=f"Incremento en Período", value=formatar_numero_grande(valor_reciente - valor_inicial), help="Valor al final menos valor al inicio")
+                    else:
+                        st.metric(label=f"Total {name}", value="N/A")
 
             # --- Gráfico de Series de Tiempo ---
             st.markdown("---")
-            st.markdown(f'<div class="section-title">📊 Gráfico de Series de Tiempo</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="section-title">📈 Gráfico de Series de Tiempo</div>', unsafe_allow_html=True)
             fig = make_subplots(
                 rows=len(selected_metrics), cols=1,
                 subplot_titles=selected_names,
@@ -474,33 +372,26 @@ def evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
 
             # --- Tabla de Datos ---
             with st.expander("Ver datos tabulados"):
-                st.dataframe(
-                    df_filtrado[selected_metrics].rename(columns=TRANSLATIONS).sort_index(ascending=False),
-                    use_container_width=True # ¡MEJORA!
-                )
+                # ... (Tu código de tabla va aquí) ...
+                st.dataframe(df_filtrado[selected_metrics].rename(columns=TRANSLATIONS).sort_index(ascending=False))
                 
     elif not selected_metrics:
-        st.info("Selecciona al menos una métrica para graficar desde el panel lateral (sidebar).")
+        st.info("Selecciona al menos una métrica para graficar.")
 
 # --- FUNCIÓN Pestaña 3: Comparaciones ---
 def comparaciones_paises(df_latest, metrics_df): 
-    st.markdown('<div class="section-title">🌎 Comparaciones (Países)</div>', unsafe_allow_html=True)
-    # (Omitido por brevedad, tu código original va aquí)
-    st.markdown("*(Tu código de la Pestaña 3 'Comparaciones' va aquí)*")
-
+    # ... (Tu código para la Pestaña 3 va aquí. No necesita cambios) ...
+    st.markdown("### 🌎 Comparaciones (Países)")
 
 # --- FUNCIÓN Pestaña 4: Estadísticas ---
 def estadisticas_global(df_latest, metrics_df): 
-    st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
-    # (Omitido por brevedad, tu código original va aquí)
-    st.markdown("*(Tu código de la Pestaña 4 'Estadísticas' va aquí)*")
-
+    # ... (Tu código para la Pestaña 4 va aquí. No necesita cambios) ...
+    st.markdown("### 📊 Estadísticas (Global)")
 
 # --- FUNCIÓN Pestaña 5: Correlaciones ---
 def correlaciones_global(df_latest, metrics_df): 
-    st.markdown('<div class="section-title">🔗 Correlaciones (Global)</div>', unsafe_allow_html=True)
-    # (Omitido por brevedad, tu código original va aquí)
-    st.markdown("*(Tu código de la Pestaña 5 'Correlaciones' va aquí)*")
+    # ... (Tu código para la Pestaña 5 va aquí. No necesita cambios) ...
+    st.markdown("### 🔗 Correlaciones (Global)")
 
 
 # =============================================================================
@@ -510,95 +401,81 @@ def main():
     """
     Punto de entrada principal de la aplicación Streamlit.
     """
-    # --- st.set_page_config se movió al inicio del script ---
-    
+    # --- ¡CORREGIDO! page_icon cambiado a emoji ---
+    st.set_page_config(
+        page_title="Panel COVID-19",
+        page_icon="🌍",
+        layout="wide" 
+    )
+
     # --- Título y Estado de la API ---
     col1, col2 = st.columns([6, 1])
     with col1:
         st.markdown('<div class="main-title">🌍 Panel COVID-19 - Análisis</div>', unsafe_allow_html=True)
         st.markdown('<div class="subtitle">Datos y comparativas de COVID-19 a nivel mundial y por país</div>', unsafe_allow_html=True)
     with col2:
-        # ¡MEJORA! Aplicar las nuevas clases CSS
         if check_api_status():
-            st.markdown('<div class="status-badge online">✓ API Conectada</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-badge">✓ API Conectada</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="status-badge offline">✗ API Desconectada</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-badge" style="background-color: #dc3545;">API Desconectada</div>', unsafe_allow_html=True)
 
-    # --- Carga de Datos Inicial (¡CON FILTRADO!) ---
+    # --- Carga de Datos Inicial ---
     try:
         with st.spinner(f"Cargando datos iniciales desde la API ({API_BASE_URL})... (Puede tardar 45s si la API duerme)"):
-            # 1. Renombramos la variable de la API
-            df_latest, countries_list, all_metrics_from_api = load_dashboard_data()
+            df_latest, countries_list, all_metrics = load_dashboard_data()
     except Exception as e:
         st.error(f"Error fatal al intentar cargar datos: {e}")
         st.warning("Asegúrate de que la API esté corriendo y sea accesible.")
         return
 
     if df_latest is None:
+        # El error ya se muestra en load_dashboard_data
         st.stop()
 
     st.toast("¡Datos cargados exitosamente!", icon="✅")
 
-    # --- Preparación de DataFrames para Selectores (¡CON FILTRADO!) ---
-    
-    # ¡¡AQUÍ APLICAMOS EL FILTRO!!
-    if all_metrics_from_api:
-        all_metrics = [
-            m for m in all_metrics_from_api 
-            if m not in TECHNICAL_METRICS_TO_HIDE
-        ]
-    else:
-        all_metrics = []
-    
-    # 3. Creamos el metrics_df SÓLO con las métricas filtradas
+    # --- Preparación de DataFrames para Selectores ---
     metrics_df = pd.DataFrame({metric: pd.Series(dtype='float64') for metric in (all_metrics or [])})
     
     data_max_date = df_latest['date'].max() if ('date' in df_latest.columns and not df_latest['date'].empty) else pd.to_datetime(date.today())
+    # Fijar fecha mínima para evitar errores
     data_min_date = pd.to_datetime("2020-01-22") 
     
-    # --- KPIs Globales (¡CON ESTILO DE CARDS!) ---
+    # --- KPIs Globales ---
     st.markdown('<div class="section-title">Resumen Global (Últimos Datos)</div>', unsafe_allow_html=True)
     latest = df_latest 
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        # ¡MEJORA! Aplicar el estilo "Card"
-        with st.container(border=True): 
-            total_cases = latest['total_cases'].sum() if 'total_cases' in latest.columns else np.nan
-            new_cases = latest['new_cases'].sum() if 'new_cases' in latest.columns else np.nan
-            st.metric(label="Casos Totales", value=formatar_numero_grande(total_cases),
-                      delta=f"{new_cases:,.0f} (Nuevos)" if pd.notna(new_cases) and new_cases != 0 else None)
+        total_cases = latest['total_cases'].sum() if 'total_cases' in latest.columns else np.nan
+        new_cases = latest['new_cases'].sum() if 'new_cases' in latest.columns else np.nan
+        st.metric(label="Casos Totales", value=formatar_numero_grande(total_cases),
+                  delta=f"{new_cases:,.0f} (Nuevos)" if pd.notna(new_cases) and new_cases != 0 else None)
     with col2:
-        with st.container(border=True):
-            total_deaths = latest['total_deaths'].sum() if 'total_deaths' in latest.columns else np.nan
-            new_deaths = latest['new_deaths'].sum() if 'new_deaths' in latest.columns else np.nan
-            st.metric(label="Muertes Totales", value=formatar_numero_grande(total_deaths),
-                      delta=f"{new_deaths:,.0f} (Nuevas)" if pd.notna(new_deaths) and new_deaths != 0 else None, delta_color="inverse")
+        total_deaths = latest['total_deaths'].sum() if 'total_deaths' in latest.columns else np.nan
+        new_deaths = latest['new_deaths'].sum() if 'new_deaths' in latest.columns else np.nan
+        st.metric(label="Muertes Totales", value=formatar_numero_grande(total_deaths),
+                  delta=f"{new_deaths:,.0f} (Nuevas)" if pd.notna(new_deaths) and new_deaths != 0 else None, delta_color="inverse")
     with col3:
-        with st.container(border=True):
-            pop_label = "Población Mundial"
-            pop_help = "Población mundial reportada por Our World in Data ('World')."
-            total_pop = np.nan 
-            world_pop_row = latest[latest['location'].str.lower() == 'world'] if 'location' in latest.columns else pd.DataFrame()
-            if not world_pop_row.empty and 'population' in world_pop_row.columns:
-                total_pop = world_pop_row['population'].iloc[0]
-            else:
-                try:
-                    non_aggregate_pop = latest[~latest['location'].str.lower().isin(AGGREGATES)]['population'].sum() if 'location' in latest.columns and 'population' in latest.columns else np.nan
-                    
-                    # --- ¡¡AQUÍ ESTÁ LA CORRECCIÓN!! ---
-                    total_pop = non_aggregate_pop
-                    
-                    pop_label = "Población (Suma Países)"
-                    pop_help = "Suma de poblaciones de países individuales (excluyendo regiones agregadas)."
-                except Exception:
-                    pop_label = "Población (Error)"
-                    pop_help = "No se pudo calcular la población."
-            st.metric(label=pop_label, value=formatar_numero_grande(total_pop), help=pop_help)
+        pop_label = "Población Mundial"
+        pop_help = "Población mundial reportada por Our World in Data ('World')."
+        total_pop = np.nan 
+        world_pop_row = latest[latest['location'].str.lower() == 'world'] if 'location' in latest.columns else pd.DataFrame()
+        if not world_pop_row.empty and 'population' in world_pop_row.columns:
+            total_pop = world_pop_row['population'].iloc[0]
+        else:
+            try:
+                non_aggregate_pop = latest[~latest['location'].str.lower().isin(AGGREGATES)]['population'].sum() if 'location' in latest.columns and 'population' in latest.columns else np.nan
+                total_pop = non_aggregate_pop
+                pop_label = "Población (Suma Países)"
+                pop_help = "Suma de poblaciones de países individuales (excluyendo regiones agregadas)."
+            except Exception:
+                pop_label = "Población (Error)"
+                pop_help = "No se pudo calcular la población."
+        st.metric(label=pop_label, value=formatar_numero_grande(total_pop), help=pop_help)
     with col4:
-        with st.container(border=True):
-            unique_countries = latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
-            st.metric(label="Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).")
+        unique_countries = latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
+        st.metric(label="Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).")
     
     st.markdown("---") # Separador antes de las pestañas
     
@@ -614,7 +491,6 @@ def main():
     with tab1:
         vista_general(df_latest, metrics_df) 
     with tab2:
-        # Pasamos los filtros de fecha al sidebar de la pestaña 2
         evolucion_por_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab3:
         comparaciones_paises(df_latest, metrics_df) 
@@ -625,7 +501,7 @@ def main():
 
     # --- Pie de Página ---
     st.markdown("---")
-    unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
+    unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in df_latest.columns else 0
     st.markdown(f"""
         <div style='text-align: center; color: #6c757d; padding: 20px;'>
             <p><strong>Fuente de Datos:</strong> API COVID-19 (vía Our World in Data) |
