@@ -22,7 +22,7 @@ from functools import reduce
 # =============================================================================
 # Esto DEBE ser el primer comando de Streamlit
 st.set_page_config(
-    page_title="Panel COVID-19 (Proyecto de Grado)",
+    page_title="Panel COVID-19 - Análisis",
     page_icon="🌍",
     layout="wide" 
 )
@@ -831,8 +831,6 @@ def render_tab_arquitectura():
     with st.container(border=False):
         st.markdown("### 🙏 Agradecimientos")
         st.markdown("""
-        Quiero extender mi más sincero agradecimiento a mi director de proyecto, a los miembros del jurado por su tiempo y orientación, y a mi familia por su apoyo incondicional durante el desarrollo de este trabajo de grado.
-        
         Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube (CI/CD).
         """)
 
