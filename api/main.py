@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-COVID-19 Data API (Versión 2.5 - Despliegue en Render)
+COVID-19 Data API (Versión 2.6 - Con /compare-timeseries)
 
 - ¡NUEVO! Añadido endpoint /covid/country-history para refactor de rendimiento.
+- ¡NUEVO! Añadido endpoint /covid/compare-timeseries según solicitud.
 - Carga datos desde un CSV local (api/data/owid-covid-data.csv).
 - Ejecuta el ETL completo en memoria al iniciar.
 - Corrige el patrón regex para las fechas.
@@ -103,7 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="COVID-19 Data API",
     description="API para acceder a métricas y series de tiempo de COVID-19 (Datos Locales)",
-    version="2.5.0", # Versión actualizada
+    version="2.6.0", # Versión actualizada
     lifespan=lifespan
 )
 
@@ -170,7 +171,7 @@ async def root():
 
     return {
         "name": "COVID-19 Data API",
-        "version": "2.5.0",
+        "version": "2.6.0",
         "status": api_status,
         "data_source": "Local CSV (owid-covid-data.csv)",
         "data_last_updated": covid_data['date'].max().isoformat() if covid_data is not None and 'date' in covid_data.columns else "N/A",
@@ -181,7 +182,8 @@ async def root():
             "/covid/metrics": "Get list of available metrics",
             "/covid/timeseries": "Get time series data for a country",
             "/covid/summary": "Get summary statistics for a country",
-            "/covid/compare": "Compare metrics across multiple countries",
+            "/covid/compare": "Compare metrics across multiple countries (Stub)",
+            "/covid/compare-timeseries": "Compare time series for multiple countries",
             "/covid/latest": "Get latest data for all or specific countries",
             "/covid/global": "Get global aggregated statistics",
             "/covid/country-history": "Get full history for one country"
@@ -298,10 +300,11 @@ async def compare_countries(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
 ):
-    """Compara una métrica específica a través de múltiples países en un rango de fechas."""
+    """Compara una métrica específica a través de múltiples países en un rango de fechas. (STUB)"""
     try:
         # ... (Tu lógica de comparación va aquí)
-        return {"metric": metric, "countries_requested": countries, "comparison": []}
+        # ESTE ES UN STUB (INCOMPLETO)
+        return {"message": "Este endpoint está en desarrollo. Use /covid/compare-timeseries.", "metric": metric, "countries_requested": countries, "comparison": []}
     
     except ValueError as e: 
         raise HTTPException(status_code=400, detail=f"Invalid parameter format: {e}")
@@ -309,6 +312,88 @@ async def compare_countries(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- ENDPOINT AGREGADO SEGÚN IMAGEN ---
+@app.get("/covid/compare-timeseries", tags=["COVID Data"])
+async def compare_timeseries(
+    df: pd.DataFrame = Depends(get_data),
+    countries: str = Query(..., description="Lista de países separados por comas (ej: Ecuador,Peru,Colombia)"),
+    metric: str = Query("new_cases_smoothed", description="Métrica a comparar"),
+    start_date: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    end_date: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
+):
+    """
+    [NUEVO] Compara una métrica específica a través de múltiples países,
+    devolviendo sus series de tiempo.
+    """
+    try:
+        country_list_raw = [c.strip() for c in countries.split(',') if c.strip()]
+        country_list_lower = [c.lower() for c in country_list_raw]
+        
+        if not country_list_lower:
+            raise HTTPException(status_code=400, detail="La lista de países está vacía.")
+
+        if metric not in df.columns:
+            raise HTTPException(status_code=400, detail=f"Métrica '{metric}' no encontrada.")
+
+        # Filtrar por países
+        df_filtered = df[df['location'].str.lower().isin(country_list_lower)].copy()
+
+        if df_filtered.empty:
+             raise HTTPException(status_code=404, detail="Ninguno de los países solicitados fue encontrado.")
+
+        # Filtrar por fechas
+        if start_date:
+            df_filtered = df_filtered[df_filtered['date'] >= pd.to_datetime(start_date)]
+        if end_date:
+            df_filtered = df_filtered[df_filtered['date'] <= pd.to_datetime(end_date)]
+        
+        if df_filtered.empty:
+             raise HTTPException(status_code=404, detail="No se encontraron datos para el rango de fechas especificado.")
+
+        # Estructurar la respuesta
+        response_data = {
+            "metric": metric,
+            "start_date": start_date,
+            "end_date": end_date,
+            "comparison_data": {}
+        }
+
+        # Mapear minúsculas a nombres originales capitalizados
+        name_map = df_filtered.drop_duplicates('location', keep='first').set_index(df_filtered['location'].str.lower())['location'].to_dict()
+
+        for country_lower in country_list_lower:
+            original_name = name_map.get(country_lower)
+            if original_name:
+                # Usamos .loc para evitar SettingWithCopyWarning
+                country_data = df_filtered.loc[df_filtered['location'].str.lower() == country_lower, ['date', metric]]
+                
+                if not country_data.empty:
+                    # Limpiar NaNs/Infs para JSON
+                    country_data = country_data.replace([np.inf, -np.inf], np.nan)
+                    country_data_cleaned = country_data.astype(object).where(pd.notnull(country_data), None)
+                    
+                    response_data["comparison_data"][original_name] = country_data_cleaned.to_dict(orient='records')
+                else:
+                    # Informar si un país específico no tuvo datos en el rango
+                    response_data["comparison_data"][original_name] = []
+            else:
+                 # Si el país se pidió pero no se encontró (ej. "Ecuado"), usa el nombre crudo
+                 raw_name_index = country_list_lower.index(country_lower)
+                 response_data["comparison_data"][country_list_raw[raw_name_index]] = []
+
+
+        return response_data
+
+    except ValueError as e: 
+        raise HTTPException(status_code=400, detail=f"Formato de parámetro inválido: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en /covid/compare-timeseries: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+# --- FIN ENDPOINT AGREGADO ---
 
 
 # --- ¡NUEVO ENDPOINT! ---
