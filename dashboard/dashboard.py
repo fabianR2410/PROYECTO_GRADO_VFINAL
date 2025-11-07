@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.9 - Comparación de Series de Tiempo)
+Panel COVID-19 - Análisis (Versión 4.0 - UI Simplificada)
 
-- ¡NUEVO! Pestaña de Comparación de Evolución Temporal (Tab 3) 
-  ahora es funcional y llama al endpoint /covid/compare-timeseries.
+- ELIMINADO: Pestaña interna de Evolución Temporal Comparada (Tab 3).
+- ELIMINADO: Sección de Análisis Guiado (Tab 4).
 """
 import streamlit as st
 import pandas as pd
@@ -391,57 +391,8 @@ def get_full_history(country):
         st.error(f"Error cargando el historial para '{country}': {e}")
         return pd.DataFrame()
 
-# --- ¡NUEVA FUNCIÓN! (Para Pestaña 3) ---
-@st.cache_data(ttl=600) # Caché por 10 minutos
-def get_comparison_timeseries(countries_str, metric, start_date, end_date):
-    """
-    Obtiene la serie de tiempo de UNA métrica para VARIOS países.
-    Llama al endpoint /covid/compare-timeseries.
-    Devuelve un DataFrame "largo" listo para Plotly.
-    """
-    try:
-        api_params = {
-            'countries': countries_str,
-            'metric': metric,
-            'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
-            'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
-        }
-        
-        timeout_largo = 45 # Timeout largo para el "cold start" de Render
-        response = requests.get(f"{API_BASE_URL}/covid/compare-timeseries", params=api_params, timeout=timeout_largo)
-        response.raise_for_status()
-        
-        data = response.json()
-        comparison_data = data.get('comparison_data', {})
-        
-        # --- Lógica de Transformación: Anidado -> Largo ---
-        all_dfs = []
-        for country, records in comparison_data.items():
-            if records: # Asegurarse de que la lista no esté vacía
-                df_country = pd.DataFrame(records)
-                df_country['location'] = country
-                all_dfs.append(df_country)
-        
-        if not all_dfs:
-            # No es un error, solo no hay datos para esos criterios
-            return pd.DataFrame()
-            
-        df_long = pd.concat(all_dfs, ignore_index=True)
-        
-        # Renombrar la columna de la métrica a un valor genérico para graficar
-        if metric in df_long.columns:
-            df_long.rename(columns={metric: 'metric_value'}, inplace=True)
-        
-        if 'date' in df_long.columns:
-            df_long['date'] = pd.to_datetime(df_long['date'])
-            return df_long
-        else:
-            st.error("La respuesta de la API de comparación no contiene 'date'.")
-            return pd.DataFrame()
-
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error cargando datos de comparación: {e}")
-        return pd.DataFrame()
+# --- FUNCIÓN ELIMINADA ---
+# Se eliminó get_comparison_timeseries() porque ya no se usa.
 
 # =============================================================================
 # --- 5. FUNCIONES DE PESTAÑA (Lógica de cada Tab) ---
@@ -674,8 +625,8 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
     elif not selected_metrics:
         st.info("Selecciona al menos una métrica para graficar.")
 
-# --- FUNCIÓN Pestaña 3: Comparaciones ---
-def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date): 
+# --- FUNCIÓN Pestaña 3: Comparaciones (MODIFICADA) ---
+def render_tab_comparativo(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 3: COMPARACIONES (PAÍSES)"""
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
@@ -700,332 +651,221 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                 default=[c for c in ['Ecuador', 'Peru', 'Colombia', 'Brazil', 'Argentina'] if c in countries]
             )
     
-    # --- ¡MEJORA! PESTAÑAS INTERNAS ---
-    tab_foto, tab_evolucion = st.tabs(["Comparación (Último Día)", "Evolución Temporal"])
-
-    with tab_foto:
-        main_col1, main_col2 = st.columns([3, 2]) 
-        # --- Columna 1: Gráfico de Barras ---
-        with main_col1:
-            with st.container(border=False): 
-                st.markdown('<div class="section-title" style="margin-top: 20px;">📊 Comparación por Métrica</div>', unsafe_allow_html=True)
-                if selected_countries and selected_metric_bar:
-                    st.markdown(f'<div class="section-title">{selected_name_bar}</div>', unsafe_allow_html=True)
-                    comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)].sort_values(selected_metric_bar, ascending=False)
-                    colors = {'Ecuador': '#0066cc', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'}
-                    fig = go.Figure(data=[
-                        go.Bar(
-                            y=comp_data['location'], x=comp_data[selected_metric_bar], orientation='h',
-                            text=comp_data[selected_metric_bar].apply(lambda x: f'{x:,.0f}' if pd.notna(x) else 'N/A'),
-                            textposition='outside',
-                            marker=dict(color=[colors.get(c, '#6c757d') for c in comp_data['location']])
-                        )
-                    ])
-                    fig.update_layout(
-                        height=max(300, len(selected_countries) * 60),
-                        xaxis_title=selected_name_bar, yaxis_title="",
-                        showlegend=False, template='plotly_white'
-                    )
-                    st.plotly_chart(fig, use_container_width=True) 
-                elif not selected_countries:
-                    st.warning("Selecciona al menos un país para el gráfico de barras.")
-                elif selected_metric_bar:
-                    st.info("Selecciona al menos un país.")
-                else:
-                    st.info("Selecciona una métrica y al menos un país.")
-
-        # --- Columna 2: Tabla de Resumen y Heatmap ---
-        with main_col2:
-            with st.container(border=False): 
-                st.markdown('<div class="section-title" style="margin-top: 20px;">📄 Resumen Comparativo</div>', unsafe_allow_html=True)
-                selected_metrics_table, selected_names_table = create_translated_multiselect(
-                    "Métricas (para Tabla y Heatmap)",
-                    metrics_df, 
-                    exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS,
-                    default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred'],
-                    key="metrics_comp_table"
-                )
-                
-                if selected_countries and selected_metrics_table:
-                    st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
-                    
-                    # --- CORRECCIÓN KeyError en Tabla Comparativa ---
-                    # Filtra solo las columnas que SÍ existen en el df_latest
-                    existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
-                    if not existing_cols_table:
-                        st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
-                    else:
-                        comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
-                        table_data = comp_data.set_index('location')[existing_cols_table] # Usa solo columnas existentes
-                        table_data.columns = [translate_column(c) for c in table_data.columns]
-                        st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
-
-                        st.markdown("---")
-                        st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
-                        df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() # Usa solo columnas existentes
-                        if not df_to_norm.empty:
-                            df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
-                            df_norm.columns = [translate_column(c) for c in df_norm.columns]
-                            
-                            fig_heat = px.imshow(
-                                df_norm.T, 
-                                text_auto=True,
-                                aspect="auto",
-                                color_continuous_scale='RdYlGn', 
-                                title="Comparación Normalizada (0=Peor, 1=Mejor)"
-                            )
-                            fig_heat.update_traces(texttemplate="%{z:.2f}") 
-                            fig_heat.update_layout(height=max(400, len(existing_cols_table) * 70))
-                            st.plotly_chart(fig_heat, use_container_width=True) 
-                        else:
-                            st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
-
-                elif not selected_countries:
-                    st.warning("Por favor, selecciona al menos un país en el filtro de arriba.")
-                else:
-                    st.info("Selecciona al menos una métrica para la tabla/heatmap.")
+    # --- PESTAÑAS INTERNAS ELIMINADAS ---
+    # El contenido de "tab_foto" ahora está en el nivel principal.
     
-    # --- ¡SECCIÓN ACTUALIZADA! ---
-    with tab_evolucion:
-        st.markdown('<div class="section-title" style="margin-top: 20px;">📈 Evolución Temporal Comparada</div>', unsafe_allow_html=True)
-        
-        # --- Filtros para esta pestaña ---
-        evol_col1, evol_col2, evol_col3 = st.columns([2, 3, 1])
-        
-        with evol_col1:
-            selected_metric_evol, selected_name_evol = create_translated_selectbox(
-                "Métrica a Comparar",
-                metrics_df, 
-                exclude_cols=STATIC_METRICS_EXCLUDE_LIST, 
-                key="metric_evol_comp",
-                default_col='new_cases_smoothed_per_million'
-            )
-        
-        with evol_col2:
-            date_range_evol = st.date_input(
-                "Rango de Fechas (Evolución)",
-                value=(data_min_date, data_max_date), 
-                min_value=data_min_date, max_value=data_max_date,
-                key="evol_date_range_comp"
-            )
-        
-        with evol_col3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            use_log_evol = st.checkbox("Escala Logarítmica", key="log_evol_comp")
-
-        # --- Lógica de carga y gráfico ---
-        # 'selected_countries' viene de los filtros de arriba
-        if not selected_countries:
-            st.warning("Selecciona al menos un país en el filtro principal 'Filtros de Comparación'.")
-        elif not selected_metric_evol:
-            st.info("Selecciona una métrica para comparar.")
-        elif len(date_range_evol) != 2:
-            st.warning("Selecciona un rango de fechas válido.")
-        else:
-            with st.spinner(f"Cargando series de tiempo para {len(selected_countries)} países..."):
-                # Unir países en string
-                countries_str = ",".join(selected_countries)
-                start_date, end_date = date_range_evol
-                
-                # Llamar a la nueva función helper
-                df_comp_long = get_comparison_timeseries(countries_str, selected_metric_evol, start_date, end_date)
-                
-                if df_comp_long.empty:
-                    st.warning("No se encontraron datos para los criterios seleccionados.")
-                else:
-                    # Graficar
-                    fig_evol = px.line(
-                        df_comp_long,
-                        x='date',
-                        y='metric_value',
-                        color='location',
-                        title=f"Evolución de {selected_name_evol}",
-                        labels={'metric_value': selected_name_evol, 'date': 'Fecha', 'location': 'País'},
-                        template='plotly_white',
-                        log_y=use_log_evol,
-                        hover_name='location',
-                        hover_data={'date': '|%Y-%m-%d', 'metric_value': ':.1f'}
+    main_col1, main_col2 = st.columns([3, 2]) 
+    # --- Columna 1: Gráfico de Barras ---
+    with main_col1:
+        with st.container(border=False): 
+            st.markdown('<div class="section-title" style="margin-top: 20px;">📊 Comparación por Métrica</div>', unsafe_allow_html=True)
+            if selected_countries and selected_metric_bar:
+                st.markdown(f'<div class="section-title">{selected_name_bar}</div>', unsafe_allow_html=True)
+                comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)].sort_values(selected_metric_bar, ascending=False)
+                colors = {'Ecuador': '#0066cc', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'}
+                fig = go.Figure(data=[
+                    go.Bar(
+                        y=comp_data['location'], x=comp_data[selected_metric_bar], orientation='h',
+                        text=comp_data[selected_metric_bar].apply(lambda x: f'{x:,.0f}' if pd.notna(x) else 'N/A'),
+                        textposition='outside',
+                        marker=dict(color=[colors.get(c, '#6c757d') for c in comp_data['location']])
                     )
-                    fig_evol.update_layout(height=600, hovermode='x unified')
-                    st.plotly_chart(fig_evol, use_container_width=True)
+                ])
+                fig.update_layout(
+                    height=max(300, len(selected_countries) * 60),
+                    xaxis_title=selected_name_bar, yaxis_title="",
+                    showlegend=False, template='plotly_white'
+                )
+                st.plotly_chart(fig, use_container_width=True) 
+            elif not selected_countries:
+                st.warning("Selecciona al menos un país para el gráfico de barras.")
+            elif selected_metric_bar:
+                st.info("Selecciona al menos un país.")
+            else:
+                st.info("Selecciona una métrica y al menos un país.")
+
+    # --- Columna 2: Tabla de Resumen y Heatmap ---
+    with main_col2:
+        with st.container(border=False): 
+            st.markdown('<div class="section-title" style="margin-top: 20px;">📄 Resumen Comparativo</div>', unsafe_allow_html=True)
+            selected_metrics_table, selected_names_table = create_translated_multiselect(
+                "Métricas (para Tabla y Heatmap)",
+                metrics_df, 
+                exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS,
+                default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred'],
+                key="metrics_comp_table"
+            )
+            
+            if selected_countries and selected_metrics_table:
+                st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
+                
+                # --- CORRECCIÓN KeyError en Tabla Comparativa ---
+                # Filtra solo las columnas que SÍ existen en el df_latest
+                existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
+                if not existing_cols_table:
+                    st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
+                else:
+                    comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
+                    table_data = comp_data.set_index('location')[existing_cols_table] # Usa solo columnas existentes
+                    table_data.columns = [translate_column(c) for c in table_data.columns]
+                    st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
+
+                    st.markdown("---")
+                    st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
+                    df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() # Usa solo columnas existentes
+                    if not df_to_norm.empty:
+                        df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
+                        df_norm.columns = [translate_column(c) for c in df_norm.columns]
+                        
+                        fig_heat = px.imshow(
+                            df_norm.T, 
+                            text_auto=True,
+                            aspect="auto",
+                            color_continuous_scale='RdYlGn', 
+                            title="Comparación Normalizada (0=Peor, 1=Mejor)"
+                        )
+                        fig_heat.update_traces(texttemplate="%{z:.2f}") 
+                        fig_heat.update_layout(height=max(400, len(existing_cols_table) * 70))
+                        st.plotly_chart(fig_heat, use_container_width=True) 
+                    else:
+                        st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
+
+            elif not selected_countries:
+                st.warning("Por favor, selecciona al menos un país en el filtro de arriba.")
+            else:
+                st.info("Selecciona al menos una métrica para la tabla/heatmap.")
+    
+    # --- SECCIÓN "tab_evolucion" ELIMINADA ---
 
 
-# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡CORREGIDA!) ---
+# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (MODIFICADA) ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES (¡COMPLETA!)"""
     st.markdown("Analiza las relaciones globales entre métricas socioeconómicas y los resultados de la pandemia.")
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
-    # --- ¡MEJORA! ANÁLISIS GUIADO (STORYTELLING) ---
-    # ¡CORREGIDO! Usando métricas "seguras" que sabemos que existen
-    HISTORIAS = {
-        "¿Los países con más casos (por millón) también tuvieron más muertes (por millón)?": ("total_cases_per_million", "total_deaths_per_million"),
-        "¿La vacunación se correlaciona con menos muertes por millón?": ("people_fully_vaccinated_per_hundred", "total_deaths_per_million"),
-        "¿Los países con más casos (por millón) se vacunaron más?": ("total_cases_per_million", "people_fully_vaccinated_per_hundred"),
-        "¿Países con poblaciones más grandes tuvieron más muertes por millón?": ("population", "total_deaths_per_million")
-    }
+    # --- SECCIÓN "ANÁLISIS GUIADO" ELIMINADA ---
     
-    with st.container(border=False):
-        st.markdown('<div class="section-title">🔍 Análisis Guiado (Storytelling)</div>', unsafe_allow_html=True)
-        historia_seleccionada = st.selectbox("Selecciona una pregunta de análisis:", list(HISTORIAS.keys()))
+    # --- SECCIÓN "st.expander" ELIMINADA ---
+    # El contenido ahora está en el nivel principal de la pestaña.
         
-        # Obtiene los ejes X e Y de la historia
-        default_x, default_y = HISTORIAS[historia_seleccionada]
+    # --- (Tu código de Pestaña 4: Estadísticas) ---
+    with st.container(border=False): 
+        st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
         
-        # --- ¡INICIA LA CORRECCIÓN DE KEYERROR! ---
-        # Verificar si las columnas requeridas existen en el DataFrame
-        if default_x in latest_countries_only.columns and default_y in latest_countries_only.columns:
-            st.markdown(f"**Análisis:** {translate_column(default_x)} (Eje X) vs. {translate_column(default_y)} (Eje Y)")
-            
-            # Crear una copia segura para el gráfico
-            df_scatter = latest_countries_only.dropna(subset=[default_x, default_y])
-            
-            fig_scatter = px.scatter(
-                df_scatter,
-                x=default_x, y=default_y, 
-                title=f"{translate_column(default_x)} vs. {translate_column(default_y)}",
-                color="continent",      
-                hover_name="location",   
-                trendline="ols", template='plotly_white', height=600,
-                hover_data={default_x:':,.1f', default_y:':,.1f', 'continent':False}
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-        else:
-            # Mostrar un mensaje de error amigable si faltan las columnas
-            missing_cols = []
-            if default_x not in latest_countries_only.columns:
-                missing_cols.append(translate_column(default_x))
-            if default_y not in latest_countries_only.columns:
-                missing_cols.append(translate_column(default_y))
-            
-            st.error(f"No se puede generar este análisis. Faltan las siguientes columnas en los datos procesados: **{', '.join(missing_cols)}**")
-            st.warning("Esto puede deberse a que el script de ETL (data_cleaner.py) está eliminando estas columnas por tener demasiados valores nulos.")
-        # --- FIN DE LA CORRECCIÓN ---
+        # --- Filtros ---
+        with st.container(border=False):
+            #st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
+            col1, col2, col3 = st.columns([2, 3, 1])
+            with col1:
+                continents_list = sorted(latest_countries_only['continent'].dropna().unique().tolist()) if 'continent' in latest_countries_only.columns else []
+                options_continent = ["Global (Todos)"] + continents_list
+                selected_continent = st.selectbox("Filtrar por Continente", options_continent, key="stats_continent")
+            with col2:
+                selected_metric, selected_name = create_translated_selectbox(
+                    "Métrica", metrics_df, 
+                    exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
+                    key="metric_stats", default_col='total_cases_per_million'
+                )
+            with col3:
+                st.markdown("<br>", unsafe_allow_html=True) 
+                include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
 
+        title_suffix = ""
+        if selected_continent != "Global (Todos)":
+            data_to_analyze = latest_countries_only[latest_countries_only['continent'] == selected_continent]
+            title_suffix = f"({selected_continent})"
+        else:
+            data_to_analyze = latest_countries_only
+            title_suffix = "(Global)"
+        
+        # (El resto de tu lógica de 'estadisticas_global'...)
+        data_df = pd.DataFrame() 
+        values = pd.Series(dtype=float)
+        if selected_metric and selected_metric in data_to_analyze.columns:
+            data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
+            if not include_outliers:
+                if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
+                    Q1 = data_df[selected_metric].quantile(0.25)
+                    Q3 = data_df[selected_metric].quantile(0.75)
+                    IQR = Q3 - Q1 if (Q3 - Q1) > 0 else 1 
+                    lower_bound = Q1 - 1.5 * IQR
+                    upper_bound = Q3 + 1.5 * IQR
+                    data_df = data_df[(data_df[selected_metric] >= lower_bound) & (data_df[selected_metric] <= upper_bound)]
+            if not data_df.empty:
+                values = data_df[selected_metric]
+        
+        main_col1, main_col2 = st.columns([1, 1])
+        with main_col1:
+            st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
+            if pd.api.types.is_numeric_dtype(values) and not values.empty:
+                stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
+                with stats_col1: st.metric("Media", formatar_numero_grande(values.mean()))
+                with stats_col2: st.metric("Mediana", formatar_numero_grande(values.median()))
+                with stats_col3: st.metric("Desv. Std", formatar_numero_grande(values.std()))
+                with stats_col4: st.metric("N (Países)", f"{len(values)}")
+        with main_col2:
+            st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
+            if pd.api.types.is_numeric_dtype(values) and not values.empty:
+                fig_hist = px.histogram(data_df, x=selected_metric, nbins=50, title=f"Histograma", template='plotly_white', color="continent", hover_data=['location'])
+                fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
+                fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
+                st.plotly_chart(fig_hist, use_container_width=True) 
 
     st.markdown("---")
-    
-    # --- Resto de la pestaña (Correlaciones y Estadísticas) ---
-    with st.expander("Ver Análisis Estadístico y Exploración Manual (Avanzado)"):
-        
-        # --- (Tu código de Pestaña 4: Estadísticas) ---
-        with st.container(border=False): 
-            st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
-            
-            # --- Filtros ---
-            with st.container(border=False):
-                #st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
-                col1, col2, col3 = st.columns([2, 3, 1])
+
+    # --- (Tu código de Pestaña 5: Correlaciones) ---
+    with st.container(border=False):
+        st.markdown('<div class="section-title">🔗 Exploración de Correlaciones (Manual)</div>', unsafe_allow_html=True)
+        main_col1, main_col2 = st.columns(2)
+        with main_col1:
+            st.markdown('<div class="section-title" style="margin-top: 20px;">Matriz de Correlación</div>', unsafe_allow_html=True)
+            with st.container():
+                col1, col2 = st.columns([3, 1])
                 with col1:
-                    continents_list = sorted(latest_countries_only['continent'].dropna().unique().tolist()) if 'continent' in latest_countries_only.columns else []
-                    options_continent = ["Global (Todos)"] + continents_list
-                    selected_continent = st.selectbox("Filtrar por Continente", options_continent, key="stats_continent")
-                with col2:
-                    selected_metric, selected_name = create_translated_selectbox(
-                        "Métrica", metrics_df, 
+                    selected_metrics, selected_names = create_translated_multiselect(
+                        "Métricas (Matriz)", metrics_df, 
                         exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
-                        key="metric_stats", default_col='total_cases_per_million'
+                        default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred', 'population'],
+                        key="metrics_corr"
                     )
-                with col3:
-                    st.markdown("<br>", unsafe_allow_html=True) 
-                    include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
-
-            title_suffix = ""
-            if selected_continent != "Global (Todos)":
-                data_to_analyze = latest_countries_only[latest_countries_only['continent'] == selected_continent]
-                title_suffix = f"({selected_continent})"
-            else:
-                data_to_analyze = latest_countries_only
-                title_suffix = "(Global)"
-            
-            # (El resto de tu lógica de 'estadisticas_global'...)
-            data_df = pd.DataFrame() 
-            values = pd.Series(dtype=float)
-            if selected_metric and selected_metric in data_to_analyze.columns:
-                data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
-                if not include_outliers:
-                    if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
-                        Q1 = data_df[selected_metric].quantile(0.25)
-                        Q3 = data_df[selected_metric].quantile(0.75)
-                        IQR = Q3 - Q1 if (Q3 - Q1) > 0 else 1 
-                        lower_bound = Q1 - 1.5 * IQR
-                        upper_bound = Q3 + 1.5 * IQR
-                        data_df = data_df[(data_df[selected_metric] >= lower_bound) & (data_df[selected_metric] <= upper_bound)]
-                if not data_df.empty:
-                    values = data_df[selected_metric]
-            
-            main_col1, main_col2 = st.columns([1, 1])
-            with main_col1:
-                st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
-                if pd.api.types.is_numeric_dtype(values) and not values.empty:
-                    stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
-                    with stats_col1: st.metric("Media", formatar_numero_grande(values.mean()))
-                    with stats_col2: st.metric("Mediana", formatar_numero_grande(values.median()))
-                    with stats_col3: st.metric("Desv. Std", formatar_numero_grande(values.std()))
-                    with stats_col4: st.metric("N (Países)", f"{len(values)}")
-            with main_col2:
-                st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
-                if pd.api.types.is_numeric_dtype(values) and not values.empty:
-                    fig_hist = px.histogram(data_df, x=selected_metric, nbins=50, title=f"Histograma", template='plotly_white', color="continent", hover_data=['location'])
-                    fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
-                    fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
-                    st.plotly_chart(fig_hist, use_container_width=True) 
-
-        st.markdown("---")
-
-        # --- (Tu código de Pestaña 5: Correlaciones) ---
-        with st.container(border=False):
-            st.markdown('<div class="section-title">🔗 Exploración de Correlaciones (Manual)</div>', unsafe_allow_html=True)
-            main_col1, main_col2 = st.columns(2)
-            with main_col1:
-                st.markdown('<div class="section-title" style="margin-top: 20px;">Matriz de Correlación</div>', unsafe_allow_html=True)
-                with st.container():
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        selected_metrics, selected_names = create_translated_multiselect(
-                            "Métricas (Matriz)", metrics_df, 
-                            exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
-                            default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred', 'population'],
-                            key="metrics_corr"
-                        )
-                    with col2:
-                        method = st.selectbox("Método", ["Spearman", "Pearson"])
-                if len(selected_metrics) >= 2:
-                    corr_data = latest_countries_only[selected_metrics].dropna()
-                    numeric_selected_metrics = corr_data.select_dtypes(include=np.number).columns.tolist()
-                    if len(numeric_selected_metrics) < 2:
-                        st.warning("Selecciona al menos dos métricas numéricas.")
-                    else:
-                        corr_data_numeric = corr_data[numeric_selected_metrics]
-                        corr_matrix = corr_data_numeric.corr(method=method.lower()) # type: ignore
-                        translated_labels = [translate_column(m) for m in numeric_selected_metrics]
-                        fig = go.Figure(data=go.Heatmap(
-                            z=corr_matrix.values, x=translated_labels, y=translated_labels,
-                            colorscale='RdBu', zmid=0, text=corr_matrix.values,
-                            texttemplate='%{text:.2f}', textfont={"size": 12},
-                            colorbar=dict(title="Corr.")
-                        ))
-                        fig.update_layout(height=500, xaxis=dict(side='bottom'), yaxis=dict(autorange='reversed'))
-                        st.plotly_chart(fig, use_container_width=True) 
-            with main_col2:
-                st.markdown('<div class="section-title" style="margin-top: 20px;">Dispersión Detallada</div>', unsafe_allow_html=True)
-                with st.container():
-                    col_x, col_y = st.columns(2)
-                    with col_x:
-                        selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='total_cases_per_million')
-                    with col_y:
-                        selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
-                if selected_x and selected_y:
-                    fig_scatter = px.scatter(
-                        latest_countries_only.dropna(subset=[selected_x, selected_y]),
-                        x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
-                        color="continent", hover_name="location",   
-                        trendline="ols", template='plotly_white', height=600,
-                        hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
-                    )
-                    st.plotly_chart(fig_scatter, use_container_width=True) 
+                with col2:
+                    method = st.selectbox("Método", ["Spearman", "Pearson"])
+            if len(selected_metrics) >= 2:
+                corr_data = latest_countries_only[selected_metrics].dropna()
+                numeric_selected_metrics = corr_data.select_dtypes(include=np.number).columns.tolist()
+                if len(numeric_selected_metrics) < 2:
+                    st.warning("Selecciona al menos dos métricas numéricas.")
+                else:
+                    corr_data_numeric = corr_data[numeric_selected_metrics]
+                    corr_matrix = corr_data_numeric.corr(method=method.lower()) # type: ignore
+                    translated_labels = [translate_column(m) for m in numeric_selected_metrics]
+                    fig = go.Figure(data=go.Heatmap(
+                        z=corr_matrix.values, x=translated_labels, y=translated_labels,
+                        colorscale='RdBu', zmid=0, text=corr_matrix.values,
+                        texttemplate='%{text:.2f}', textfont={"size": 12},
+                        colorbar=dict(title="Corr.")
+                    ))
+                    fig.update_layout(height=500, xaxis=dict(side='bottom'), yaxis=dict(autorange='reversed'))
+                    st.plotly_chart(fig, use_container_width=True) 
+        with main_col2:
+            st.markdown('<div class="section-title" style="margin-top: 20px;">Dispersión Detallada</div>', unsafe_allow_html=True)
+            with st.container():
+                col_x, col_y = st.columns(2)
+                with col_x:
+                    selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='total_cases_per_million')
+                with col_y:
+                    selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
+            if selected_x and selected_y:
+                fig_scatter = px.scatter(
+                    latest_countries_only.dropna(subset=[selected_x, selected_y]),
+                    x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
+                    color="continent", hover_name="location",   
+                    trendline="ols", template='plotly_white', height=600,
+                    hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True) 
 
 
 # --- ¡NUEVA FUNCIÓN! Pestaña 5: Arquitectura ---
@@ -1177,8 +1017,8 @@ def main():
         render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
         # --- ¡CAMBIO AQUÍ! ---
-        # Pasamos las fechas min/max para el selector de la nueva pestaña
-        render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date) 
+        # Ya no se pasan las fechas min/max
+        render_tab_comparativo(df_latest, metrics_df) 
     with tab_factores:
         render_tab_factores(df_latest, metrics_df) 
     with tab_arquitectura:
