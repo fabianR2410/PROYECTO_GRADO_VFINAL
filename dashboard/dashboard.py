@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 3.0 - Storytelling)
+Panel COVID-19 - Análisis (Versión 3.1 - Storytelling + README)
 Este dashboard consulta la API para visualización y está diseñado
 para contar la historia del proyecto y los datos.
 """
@@ -730,7 +730,7 @@ def render_tab_comparativo(df_latest, metrics_df):
             else:
                 st.info("Selecciona al menos una métrica para la tabla/heatmap.")
 
-# --- FUNCIÓN Pestaña 4: Estadísticas ---
+# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡NUEVA!) ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES"""
     st.markdown("Analiza las relaciones globales entre métricas a nivel de país (excluyendo agregados).")
@@ -752,15 +752,6 @@ def render_tab_factores(df_latest, metrics_df):
         # Obtiene los ejes X e Y de la historia
         default_x, default_y = HISTORIAS[historia_seleccionada]
         
-        # Encuentra el índice (index) de estos valores por defecto para los selectores
-        cols_dict_x = get_translated_columns(metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS)
-        options_x = list(cols_dict_x.keys())
-        default_index_x = options_x.index(default_x) if default_x in options_x else 0
-        
-        cols_dict_y = get_translated_columns(metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS)
-        options_y = list(cols_dict_y.keys())
-        default_index_y = options_y.index(default_y) if default_y in options_y else 0
-
         st.markdown(f"**Análisis:** {translate_column(default_x)} (Eje X) vs. {translate_column(default_y)} (Eje Y)")
         
         fig_scatter = px.scatter(
@@ -779,67 +770,45 @@ def render_tab_factores(df_latest, metrics_df):
     # --- Resto de la pestaña (Correlaciones y Estadísticas) ---
     with st.expander("Ver Análisis Estadístico y Matriz de Correlación (Avanzado)"):
         
-        # --- (Tu código de Pestaña 4: Estadísticas) ---
+        # (Tu código de Pestaña 4: Estadísticas)
         with st.container(border=False): 
             st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
-            # ... (Pega aquí tu función 'estadisticas_global' completa) ...
+            # ... (Tu código de 'estadisticas_global' va aquí) ...
             st.write("Tu código de estadísticas (Histograma, Boxplot) va aquí.")
 
         st.markdown("---")
 
-        # --- (Tu código de Pestaña 5: Correlaciones) ---
+        # (Tu código de Pestaña 5: Correlaciones)
         with st.container(border=False):
             st.markdown('<div class="section-title">🔗 Correlaciones (Global)</div>', unsafe_allow_html=True)
-            # ... (Pega aquí tu función 'correlaciones_global' completa) ...
+            # ... (Tu código de 'correlaciones_global' va aquí) ...
             st.write("Tu código de Matriz de Correlación va aquí.")
 
 # --- ¡NUEVA FUNCIÓN! Pestaña 5: Arquitectura ---
 def render_tab_arquitectura():
     """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL PROYECTO"""
-    st.markdown('<div class="section-title">🏗️ Arquitectura del Proyecto de Grado</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    Este dashboard no es solo una visualización de datos; es el **frontend** de un sistema de Business Intelligence (BI) completo,
-    desacoplado y escalable.
-    """)
+    st.markdown('<div class="section-title">🏗️ Sobre este Proyecto de Grado</div>', unsafe_allow_html=True)
     
     with st.container(border=False):
-        st.markdown("### Diagrama de Arquitectura del Sistema")
-        
-        # --- DEBES CREAR ESTE DIAGRAMA ---
-        # 1. Ve a https://app.diagrams.net/ (o draw.io)
-        # 2. Crea un diagrama simple con (Datos -> Backend -> Frontend)
-        # 3. Exporte como PNG y ponlo en tu repositorio (ej. 'static/arquitectura.png')
-        # 4. (Opcional) Súbelo a un host de imágenes y pega la URL aquí.
-        try:
-            # Intenta cargar la imagen desde una carpeta 'static'
-            st.image("static/arquitectura.png", caption="Diagrama de Flujo del Sistema")
-        except FileNotFoundError:
-            st.warning("No se encontró el diagrama 'static/arquitectura.png'. Por favor, crea uno y añádelo a tu proyecto.")
-            st.markdown("""
-            **Tu diagrama debería mostrar este flujo:**
-            1.  **Fuente de Datos:** Archivo Estático (`owid-covid-data.csv`)
-            2.  **ETL & Backend (API):**
-                * Plataforma: **Render**
-                * Framework: **FastAPI**
-                * Lógica: **Pandas** (ETL ejecutado en memoria al iniciar)
-            3.  **Frontend (Dashboard):**
-                * Plataforma: **Streamlit Cloud**
-                * Framework: **Streamlit**
-                * Lógica: **Plotly** (Gráficos), **Requests** (Consumo de API)
-            """)
-
+        st.markdown("### Resumen del Proyecto")
+        st.markdown("""
+        Este dashboard es la capa de visualización (Frontend) de un sistema de Business Intelligence (BI) completo. 
+        El objetivo fue diseñar y desplegar una arquitectura de software moderna, desacoplada y escalable para el análisis de datos en un contexto de Ingeniería de Software.
+        """)
+    
+    st.markdown("---")
+    
     col1, col2 = st.columns(2)
     
     with col1:
         with st.container(border=False):
             st.markdown("### 🚀 Backend (La API)")
             st.markdown("""
-            El "cerebro" del sistema es una API RESTful construida con **FastAPI**.
+            El "cerebro" del sistema es una API RESTful construida con **FastAPI** y desplegada en **Render**.
             
-            * **Desacoplado:** El frontend (Streamlit) está completamente separado del backend. Esto permite que otros servicios (como una app móvil) puedan consumir la misma API.
-            * **Rendimiento (ETL):** El pipeline de ETL (Extracción, Transformación, Carga) se ejecuta **en memoria** usando Pandas cuando la API se inicia. Los datos limpios se mantienen en una variable global para un acceso ultrarrápido.
-            * **Despliegue:** La API está desplegada en **Render**, una plataforma de nube (PaaS) que maneja la infraestructura automáticamente.
+            * **Desacoplado:** El frontend (Streamlit) está 100% separado del backend. Esto permite que en el futuro, otros servicios (como una app móvil) puedan consumir la misma fuente de datos.
+            * **ETL en Memoria:** Al iniciar, la API carga el CSV de `owid-covid-data.csv`, lo procesa completamente en memoria usando **Pandas** (limpieza, imputación, ingeniería de features) y lo almacena en una variable global para un acceso instantáneo.
+            * **Rendimiento:** Se usó FastAPI por su alto rendimiento asíncrono, ideal para aplicaciones de datos.
             """)
             st.link_button("Ver Documentación de la API (Swagger)", f"{API_BASE_URL}/docs")
 
@@ -847,16 +816,25 @@ def render_tab_arquitectura():
         with st.container(border=False):
             st.markdown("### 💻 Frontend (El Dashboard)")
             st.markdown("""
-            Esta aplicación que estás usando fue construida con **Streamlit**.
+            Esta aplicación que estás usando fue construida con **Streamlit** y desplegada en **Streamlit Cloud**.
             
-            * **Interactividad:** Streamlit permite convertir scripts de Python en dashboards web interactivos con selectores, pestañas y gráficos.
-            * **Optimización:**
-                1.  **`st.cache_data`**: Las llamadas a la API (como la carga inicial) se guardan en caché para evitar recargas innecesarias.
-                2.  **`timeout=45`**: Se implementó un timeout extendido para manejar el "cold start" (despertar) de la API gratuita en Render.
-                3.  **Refactor de Pestañas:** La pestaña "Evolución" se optimizó para hacer una sola llamada a la API (`/country-history`) en lugar de una por métrica, mejorando drásticamente la velocidad.
-            * **Despliegue:** El dashboard está desplegado en **Streamlit Cloud**, que se conecta directamente a nuestro repositorio de GitHub.
+            * **Interactividad:** Se usó Streamlit por su capacidad de convertir scripts de Python en dashboards web interactivos de forma rápida.
+            * **Optimización:** Se aplicaron varias técnicas para asegurar una experiencia de usuario fluida:
+                1.  **`st.cache_data`**: Las llamadas a la API se guardan en caché para evitar recargas innecesarias.
+                2.  **Manejo de "Cold Start"**: Se implementó un `timeout` de 45 segundos, ya que la API en Render (plan gratuito) se "duerme" y necesita tiempo para despertar.
+                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, reduciendo drásticamente los tiempos de carga.
             """)
             st.link_button("Ver el Repositorio en GitHub", "https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL")
+    
+    st.markdown("---")
+
+    with st.container(border=False):
+        st.markdown("### 🙏 Agradecimientos")
+        st.markdown("""
+        Quiero extender mi más sincero agradecimiento a mi director de proyecto, a los miembros del jurado por su tiempo y orientación, y a mi familia por su apoyo incondicional durante el desarrollo de este trabajo de grado.
+        
+        Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube (CI/CD).
+        """)
 
 # =============================================================================
 # --- 6. FUNCIÓN PRINCIPAL (main) ---
