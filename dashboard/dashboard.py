@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 4.0 - UI Simplificada)
+Panel COVID-19 - Análisis (Versión 4.1 - Estadísticas Mejoradas)
 
 - ELIMINADO: Pestaña interna de Evolución Temporal Comparada (Tab 3).
 - ELIMINADO: Sección de Análisis Guiado (Tab 4).
+- MEJORADO (Tab 4): Tarjetas de estadísticas en grid 2x2.
+- MEJORADO (Tab 4): Añadida escala logarítmica al histograma.
+- MEJORADO (Tab 4): Añadido Diagrama de Cajas (Box Plot) para continentes.
 """
 import streamlit as st
 import pandas as pd
@@ -391,9 +394,6 @@ def get_full_history(country):
         st.error(f"Error cargando el historial para '{country}': {e}")
         return pd.DataFrame()
 
-# --- FUNCIÓN ELIMINADA ---
-# Se eliminó get_comparison_timeseries() porque ya no se usa.
-
 # =============================================================================
 # --- 5. FUNCIONES DE PESTAÑA (Lógica de cada Tab) ---
 # =============================================================================
@@ -652,7 +652,6 @@ def render_tab_comparativo(df_latest, metrics_df):
             )
     
     # --- PESTAÑAS INTERNAS ELIMINADAS ---
-    # El contenido de "tab_foto" ahora está en el nivel principal.
     
     main_col1, main_col2 = st.columns([3, 2]) 
     # --- Columna 1: Gráfico de Barras ---
@@ -700,19 +699,18 @@ def render_tab_comparativo(df_latest, metrics_df):
                 st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
                 
                 # --- CORRECCIÓN KeyError en Tabla Comparativa ---
-                # Filtra solo las columnas que SÍ existen en el df_latest
                 existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
                 if not existing_cols_table:
                     st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
                 else:
                     comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
-                    table_data = comp_data.set_index('location')[existing_cols_table] # Usa solo columnas existentes
+                    table_data = comp_data.set_index('location')[existing_cols_table] 
                     table_data.columns = [translate_column(c) for c in table_data.columns]
                     st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
 
                     st.markdown("---")
                     st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
-                    df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() # Usa solo columnas existentes
+                    df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() 
                     if not df_to_norm.empty:
                         df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
                         df_norm.columns = [translate_column(c) for c in df_norm.columns]
@@ -734,29 +732,21 @@ def render_tab_comparativo(df_latest, metrics_df):
                 st.warning("Por favor, selecciona al menos un país en el filtro de arriba.")
             else:
                 st.info("Selecciona al menos una métrica para la tabla/heatmap.")
-    
-    # --- SECCIÓN "tab_evolucion" ELIMINADA ---
 
 
-# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (MODIFICADA) ---
+# --- FUNCIÓN Pestaña 4: Factores y Correlaciones (¡MEJORADA!) ---
 def render_tab_factores(df_latest, metrics_df): 
     """LÓGICA PARA LA PESTAÑA 4: FACTORES Y CORRELACIONES (¡COMPLETA!)"""
     st.markdown("Analiza las relaciones globales entre métricas socioeconómicas y los resultados de la pandemia.")
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
-    # --- SECCIÓN "ANÁLISIS GUIADO" ELIMINADA ---
-    
-    # --- SECCIÓN "st.expander" ELIMINADA ---
-    # El contenido ahora está en el nivel principal de la pestaña.
-        
     # --- (Tu código de Pestaña 4: Estadísticas) ---
     with st.container(border=False): 
         st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
         
         # --- Filtros ---
         with st.container(border=False):
-            #st.markdown('<div class="section-title">⚙️ Filtros de Estadísticas</div>', unsafe_allow_html=True)
             col1, col2, col3 = st.columns([2, 3, 1])
             with col1:
                 continents_list = sorted(latest_countries_only['continent'].dropna().unique().tolist()) if 'continent' in latest_countries_only.columns else []
@@ -771,6 +761,8 @@ def render_tab_factores(df_latest, metrics_df):
             with col3:
                 st.markdown("<br>", unsafe_allow_html=True) 
                 include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
+                # --- MEJORA 1: Añadir Escala Logarítmica ---
+                use_log_scale = st.checkbox("Escala Logarítmica", value=True, key="stats_log", help="Recomendado para datos muy sesgados.")
 
         title_suffix = ""
         if selected_continent != "Global (Todos)":
@@ -780,7 +772,6 @@ def render_tab_factores(df_latest, metrics_df):
             data_to_analyze = latest_countries_only
             title_suffix = "(Global)"
         
-        # (El resto de tu lógica de 'estadisticas_global'...)
         data_df = pd.DataFrame() 
         values = pd.Series(dtype=float)
         if selected_metric and selected_metric in data_to_analyze.columns:
@@ -800,18 +791,57 @@ def render_tab_factores(df_latest, metrics_df):
         with main_col1:
             st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
-                stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
-                with stats_col1: st.metric("Media", formatar_numero_grande(values.mean()))
-                with stats_col2: st.metric("Mediana", formatar_numero_grande(values.median()))
-                with stats_col3: st.metric("Desv. Std", formatar_numero_grande(values.std()))
-                with stats_col4: st.metric("N (Países)", f"{len(values)}")
+                
+                # --- MEJORA 2: Arreglar tarjetas truncadas (Grid 2x2) ---
+                row1_col1, row1_col2 = st.columns(2)
+                with row1_col1:
+                    st.metric("Media", formatar_numero_grande(values.mean()))
+                with row1_col2:
+                    st.metric("Mediana", formatar_numero_grande(values.median()))
+                
+                row2_col1, row2_col2 = st.columns(2)
+                with row2_col1:
+                    st.metric("Desv. Std", formatar_numero_grande(values.std()))
+                with row2_col2:
+                    st.metric("N (Países)", f"{len(values)}")
+                # --- Fin de la Mejora 2 ---
+
         with main_col2:
             st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
-                fig_hist = px.histogram(data_df, x=selected_metric, nbins=50, title=f"Histograma", template='plotly_white', color="continent", hover_data=['location'])
+                fig_hist = px.histogram(
+                    data_df, 
+                    x=selected_metric, 
+                    nbins=50, 
+                    title=f"Histograma", 
+                    template='plotly_white', 
+                    color="continent", 
+                    hover_data=['location'],
+                    log_x=use_log_scale # <-- MEJORA 1 aplicada
+                )
                 fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
                 fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
                 st.plotly_chart(fig_hist, use_container_width=True) 
+
+        # --- MEJORA 3: Añadir Diagrama de Cajas (Box Plot) ---
+        st.markdown("---")
+        st.markdown(f'<div class="section-title">Comparación por Continente ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
+        st.markdown("Un **Diagrama de Cajas** es ideal para comparar las distribuciones (mediana, rangos) entre continentes.")
+        if pd.api.types.is_numeric_dtype(values) and not values.empty:
+            fig_box = px.box(
+                data_df,
+                x=selected_metric,
+                y="continent",
+                color="continent",
+                title=f"Diagrama de Cajas por Continente",
+                template='plotly_white',
+                log_x=use_log_scale, # <-- Usar la misma escala
+                points="all", # Muestra todos los países como puntos
+                hover_data=['location']
+            )
+            fig_box.update_layout(yaxis_title="Continente", xaxis_title=selected_name)
+            st.plotly_chart(fig_box, use_container_width=True)
+        # --- Fin de la Mejora 3 ---
 
     st.markdown("---")
 
@@ -907,7 +937,7 @@ def render_tab_arquitectura():
             * **Optimización:** Se aplicaron varias técnicas para asegurar una experiencia de usuario fluida:
                 1.  **`st.cache_data`**: Las llamadas a la API se guardan en caché para evitar recargas innecesarias.
                 2.  **Manejo de "Cold Start"**: Se implementó un `timeout` de 45 segundos, ya que la API en Render (plan gratuito) se "duerme" y necesita tiempo para despertar.
-                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, mejorando drásticamente la velocidad.
+                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, mejorando drástiC.
             """)
             st.link_button("Ver el Repositorio en GitHub", "https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL")
     
@@ -1016,8 +1046,6 @@ def main():
     with tab_pais:
         render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
-        # --- ¡CAMBIO AQUÍ! ---
-        # Ya no se pasan las fechas min/max
         render_tab_comparativo(df_latest, metrics_df) 
     with tab_factores:
         render_tab_factores(df_latest, metrics_df) 
