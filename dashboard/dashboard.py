@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Panel COVID-19 - Análisis (Versión 2.1 - Corregida y Optimizada)
+Panel COVID-19 - Análisis (Versión 2.3 - Diseño Tarjetas)
 Este dashboard consulta la API para visualización.
 """
 import streamlit as st
@@ -238,79 +238,37 @@ def create_translated_multiselect(label, df, exclude_cols=[], include_only=[], d
     return original_cols, selected_translated
 
 # =============================================================================
-# --- 3. CSS PERSONALIZADO ---
+# --- 3. CSS PERSONALIZADO (NUEVA VERSIÓN TEMA CLARO) ---
 # =============================================================================
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
     * {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Poppins', sans-serif;
     }
 
+    /* Fondo de la app (coincide con config.toml) */
     .stApp {
-        background: linear-gradient(180deg, #f8f9fa 0%, #f0f2f5 100%);
+        background-color: #f0f2f5;
     }
 
+    /* Ocultar elementos de Streamlit */
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
+    /* Títulos */
     .main-title {
         font-size: 32px;
         font-weight: 700;
-        color: #1a1a1a;
+        color: #1a1a1a; /* Texto oscuro */
         margin-bottom: 5px;
     }
-
     .subtitle {
         font-size: 14px;
-        color: #6c757d;
+        color: #6c757d; /* Texto gris */
         margin-bottom: 30px;
     }
-
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s ease-in-out;
-        height: 100%; 
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    
-    [data-testid="stMetric"]:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
-    }
-    
-    [data-testid="stMetricLabel"] {
-        order: -1;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: white;
-        border-radius: 12px;
-        padding: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        padding: 0 24px;
-        background-color: transparent;
-        border-radius: 8px;
-        color: #6c757d;
-        font-weight: 500;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: #e7f3ff;
-        color: #0066cc;
-    }
-
     .section-title {
         font-size: 18px;
         font-weight: 600;
@@ -318,24 +276,46 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    .stSelectbox, .stMultiSelect {
-        background: transparent; 
+    /* ---- ¡EL ESTILO DE "TARJETA"! ---- */
+    /* Esto aplica a todos los st.container */
+    [data-testid="stVerticalBlock"] > [data-testid="stContainer"] {
+        background-color: #FFFFFF; /* Fondo de la tarjeta BLANCO */
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08); /* Sombra suave */
+        border: 1px solid #E0E0E0; /* Borde muy sutil */
     }
 
-    .stButton button {
+    /* Estilo de las Métricas (KPIs) */
+    [data-testid="stMetric"] {
+        background-color: #FFFFFF; /* Fondo blanco */
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+        border: 1px solid #E0E0E0;
+    }
+
+    /* Pestañas (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #FFFFFF; /* Fondo de pestañas blanco */
+        border-radius: 12px;
+        padding: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent;
+        color: #6c757d;
         border-radius: 8px;
-        font-weight: 500;
-        padding: 8px 24px;
     }
-
+    .stTabs [aria-selected="true"] {
+        background-color: #e7f3ff; /* Color de pestaña seleccionada (azul claro) */
+        color: #0066cc; /* Color primario */
+    }
+    
     .status-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        background-color: #28a745;
-        color: white;
+        display: inline-block; padding: 4px 12px; border-radius: 20px;
+        font-size: 12px; font-weight: 600; background-color: #28a745; color: white;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -959,6 +939,7 @@ def main():
     """
     Punto de entrada principal de la aplicación Streamlit.
     """
+    
     # (st.set_page_config() ya se llamó al inicio del script)
     
     # --- Título y Estado de la API ---
