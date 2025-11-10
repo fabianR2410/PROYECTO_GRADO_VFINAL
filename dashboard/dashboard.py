@@ -532,7 +532,7 @@ def render_tab_global(df_latest, metrics_df):
                             path=['continent'], # Jerarquía
                             values=selected_metric_bar, # Tamaño de los rectángulos
                             color=selected_metric_bar, # Color basado en el tamaño
-                            color_continuous_scale='Blues',
+                            color_continuous_scale='Blues', # <--- ¡LÍNEA CORREGIDA!
                             title=f'Distribución de {selected_name_bar} por Continente',
                             template="plotly_white",
                             hover_data={
@@ -919,6 +919,8 @@ def render_tab_factores(df_latest, metrics_df):
         values = pd.Series(dtype=float)
         if selected_metric and selected_metric in data_to_analyze.columns:
             data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
+            
+            # Aplicar filtro de outliers (local de la pestaña)
             if not include_outliers:
                 if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
                     Q1 = data_df[selected_metric].quantile(0.25)
@@ -927,6 +929,7 @@ def render_tab_factores(df_latest, metrics_df):
                     lower_bound = Q1 - 1.5 * IQR
                     upper_bound = Q3 + 1.5 * IQR
                     data_df = data_df[(data_df[selected_metric] >= lower_bound) & (data_df[selected_metric] <= upper_bound)]
+            
             if not data_df.empty:
                 values = data_df[selected_metric]
         
@@ -951,40 +954,67 @@ def render_tab_factores(df_latest, metrics_df):
 
         with main_col2:
             st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
+            
+            # --- ¡INICIO DE LA CORRECCIÓN DEL HISTOGRAMA! ---
+            data_for_hist = data_df.copy()
+            log_scale_active = use_log_scale
+            
+            if use_log_scale:
+                if (data_for_hist[selected_metric] <= 0).any():
+                    st.warning("⚠️ Se han filtrado valores 0 o negativos para aplicar la escala logarítmica.", icon="ℹ️")
+                    data_for_hist = data_for_hist[data_for_hist[selected_metric] > 0]
+                
+                if data_for_hist.empty:
+                    log_scale_active = False
+                    data_for_hist = data_df 
+            
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
                 fig_hist = px.histogram(
-                    data_df, 
+                    data_for_hist, # <--- Usar data_for_hist
                     x=selected_metric, 
                     nbins=50, 
                     title=f"Histograma", 
                     template='plotly_white', 
                     color="continent", 
                     hover_data=['location'],
-                    log_x=use_log_scale # <-- MEJORA 1 aplicada
+                    log_x=log_scale_active # <--- Usar log_scale_active
                 )
                 fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
                 fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
                 st.plotly_chart(fig_hist, use_container_width=True) 
+            # --- FIN DE LA CORRECCIÓN ---
 
         # ---  Diagrama de Cajas (Box Plot) ---
         st.markdown("---")
         st.markdown(f'<div class="section-title">Comparación por Continente ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
         st.markdown("Un **Diagrama de Cajas** es ideal para comparar las distribuciones (mediana, rangos) entre continentes.")
+        
+        # --- ¡INICIO DE LA CORRECCIÓN DEL BOX PLOT! ---
+        data_for_box = data_df.copy()
+        log_scale_box_active = use_log_scale
+        
+        if use_log_scale:
+            if (data_for_box[selected_metric] <= 0).any():
+                data_for_box = data_for_box[data_for_box[selected_metric] > 0]
+            if data_for_box.empty:
+                log_scale_box_active = False
+                data_for_box = data_df
+
         if pd.api.types.is_numeric_dtype(values) and not values.empty:
             fig_box = px.box(
-                data_df,
+                data_for_box, # <--- Usar data_for_box
                 x=selected_metric,
                 y="continent",
                 color="continent",
                 title=f"Diagrama de Cajas por Continente",
                 template='plotly_white',
-                log_x=use_log_scale, # <-- Usar la misma escala
+                log_x=log_scale_box_active, # <--- Usar log_scale_box_active
                 points="all", # Muestra todos los países como puntos
                 hover_data=['location']
             )
             fig_box.update_layout(yaxis_title="Continente", xaxis_title=selected_name)
             st.plotly_chart(fig_box, use_container_width=True)
-        # --- Fin de la Mejora 3 ---
+        # --- FIN DE LA CORRECCIÓN ---
 
     st.markdown("---")
 
