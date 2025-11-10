@@ -1090,57 +1090,64 @@ def render_tab_factores(df_latest, metrics_df):
 
     st.markdown("---")
 
-    # --- (Tu código de Pestaña 5: Correlaciones) ---
+    # --- ¡SECCIÓN REFACTORIZADA! ---
+    # Se eliminó la "Matriz de Correlación" (Heatmap) por ser redundante
+    # con el "Descubridor de Correlaciones"
+    
     with st.container(border=False):
-        st.markdown('<div class="section-title">🔗 Exploración de Correlaciones (Manual)</div>', unsafe_allow_html=True)
-        main_col1, main_col2 = st.columns(2)
-        with main_col1:
-            st.markdown('<div class="section-title" style="margin-top: 20px;">Matriz de Correlación</div>', unsafe_allow_html=True)
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    selected_metrics, selected_names = create_translated_multiselect(
-                        "Métricas (Matriz)", metrics_df, 
-                        exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, 
-                        default_cols=['total_cases_per_million', 'total_deaths_per_million', 'people_fully_vaccinated_per_hundred', 'population'],
-                        key="metrics_corr"
-                    )
-                with col2:
-                    method = st.selectbox("Método", ["Spearman", "Pearson"])
-            if len(selected_metrics) >= 2:
-                corr_data = latest_countries_only[selected_metrics].dropna()
-                numeric_selected_metrics = corr_data.select_dtypes(include=np.number).columns.tolist()
-                if len(numeric_selected_metrics) < 2:
-                    st.warning("Selecciona al menos dos métricas numéricas.")
-                else:
-                    corr_data_numeric = corr_data[numeric_selected_metrics]
-                    corr_matrix = corr_data_numeric.corr(method=method.lower()) # type: ignore
-                    translated_labels = [translate_column(m) for m in numeric_selected_metrics]
-                    fig = go.Figure(data=go.Heatmap(
-                        z=corr_matrix.values, x=translated_labels, y=translated_labels,
-                        colorscale='RdBu', zmid=0, text=corr_matrix.values,
-                        texttemplate='%{text:.2f}', textfont={"size": 12},
-                        colorbar=dict(title="Corr.")
-                    ))
-                    fig.update_layout(height=500, xaxis=dict(side='bottom'), yaxis=dict(autorange='reversed'))
-                    st.plotly_chart(fig, use_container_width=True) 
-        with main_col2:
-            st.markdown('<div class="section-title" style="margin-top: 20px;">Dispersión Detallada</div>', unsafe_allow_html=True)
-            with st.container():
-                col_x, col_y = st.columns(2)
-                with col_x:
-                    selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='total_cases_per_million')
-                with col_y:
-                    selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
-            if selected_x and selected_y:
+        st.markdown('<div class="section-title">🔎 Exploración Visual de Correlaciones</div>', unsafe_allow_html=True)
+        st.markdown("Usa este gráfico para explorar visualmente las relaciones (lineales o no) entre dos métricas.")
+
+        with st.container():
+            col_x, col_y = st.columns(2)
+            with col_x:
+                selected_x, name_x = create_translated_selectbox("Métrica Eje X", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_x", default_col='gdp_per_capita')
+            with col_y:
+                selected_y, name_y = create_translated_selectbox("Métrica Eje Y", metrics_df, exclude_cols=CROSS_SECTIONAL_EXCLUDE_METRICS, key="corr_y", default_col='total_deaths_per_million')
+        
+        if selected_x and selected_y:
+            
+            # Aplicar filtro de outliers (local de la pestaña)
+            plot_data = latest_countries_only.dropna(subset=[selected_x, selected_y])
+            if not include_outliers:
+                 if pd.api.types.is_numeric_dtype(plot_data[selected_x]) and len(plot_data) > 1:
+                    Q1_x = plot_data[selected_x].quantile(0.25)
+                    Q3_x = plot_data[selected_x].quantile(0.75)
+                    IQR_x = Q3_x - Q1_x if (Q3_x - Q1_x) > 0 else 1
+                    lower_x = Q1_x - 1.5 * IQR_x
+                    upper_x = Q3_x + 1.5 * IQR_x
+                    plot_data = plot_data[(plot_data[selected_x] >= lower_x) & (plot_data[selected_x] <= upper_x)]
+                 
+                 if pd.api.types.is_numeric_dtype(plot_data[selected_y]) and len(plot_data) > 1:
+                    Q1_y = plot_data[selected_y].quantile(0.25)
+                    Q3_y = plot_data[selected_y].quantile(0.75)
+                    IQR_y = Q3_y - Q1_y if (Q3_y - Q1_y) > 0 else 1
+                    lower_y = Q1_y - 1.5 * IQR_y
+                    upper_y = Q3_y + 1.5 * IQR_y
+                    plot_data = plot_data[(plot_data[selected_y] >= lower_y) & (plot_data[selected_y] <= upper_y)]
+
+            # Aplicar filtro logarítmico para el gráfico de dispersión
+            log_x_scatter = use_log_scale
+            log_y_scatter = use_log_scale
+            
+            if log_x_scatter and (plot_data[selected_x] <= 0).any():
+                plot_data = plot_data[plot_data[selected_x] > 0]
+            if log_y_scatter and (plot_data[selected_y] <= 0).any():
+                plot_data = plot_data[plot_data[selected_y] > 0]
+            
+            if plot_data.empty:
+                st.warning("No hay datos para mostrar después de aplicar los filtros.")
+            else:
                 fig_scatter = px.scatter(
-                    latest_countries_only.dropna(subset=[selected_x, selected_y]),
+                    plot_data,
                     x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
                     color="continent", hover_name="location",   
                     trendline="ols", template='plotly_white', height=600,
+                    log_x=log_x_scatter, log_y=log_y_scatter,
                     hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
                 )
                 st.plotly_chart(fig_scatter, use_container_width=True) 
+    # --- FIN DE LA SECCIÓN REFACTORIZADA ---
 
 
 # --- Pestaña 5: Arquitectura ---
