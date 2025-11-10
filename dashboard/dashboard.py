@@ -199,6 +199,21 @@ TRANSLATIONS = {
     'date': 'Fecha',
 }
 
+# --- ¡NUEVO! DICCIONARIO DE DEFINICIONES ---
+DEFINITIONS = {
+    'total_cases_per_million': 'El número total de casos confirmados de COVID-19 por cada 1 millón de habitantes.',
+    'total_deaths_per_million': 'El número total de muertes atribuidas a COVID-19 por cada 1 millón de habitantes.',
+    'case_fatality_rate': 'El porcentaje de casos confirmados que resultan en muerte. (Muertes Totales / Casos Totales)',
+    'people_fully_vaccinated_per_hundred': 'El número de personas que han completado el esquema de vacunación inicial por cada 100 habitantes.',
+    'gdp_per_capita': 'El Producto Interno Bruto (PIB) dividido por la población. Es un indicador de la riqueza promedio.',
+    'median_age': 'La edad que divide a la población en dos mitades iguales (la mitad es más joven, la mitad es más vieja).',
+    'diabetes_prevalence': 'El porcentaje de la población (20-79 años) con diabetes.',
+    'cardiovasc_death_rate': 'La tasa de muertes por enfermedades cardiovasculares por cada 100,000 habitantes.',
+    'population_density': 'El número de personas por kilómetro cuadrado de área terrestre.',
+    'hospital_beds_per_thousand': 'El número de camas de hospital disponibles por cada 1,000 habitantes.'
+}
+
+
 def translate_column(col):
     """Traducir nombre de columna al español."""
     return TRANSLATIONS.get(col, col.replace('_', ' ').title())
@@ -901,6 +916,12 @@ def render_tab_factores(df_latest, metrics_df):
                 # --- Escala Logarítmica ---
                 use_log_scale = st.checkbox("Escala Logarítmica", value=True, key="stats_log", help="Recomendado para datos muy sesgados.")
 
+        # --- ¡INICIO DE LA MEJORA DE COMPRENSIÓN! ---
+
+        # 1. Añadir definición
+        if selected_metric:
+            st.info(f"**Definición:** {DEFINITIONS.get(selected_metric, 'No hay definición disponible para esta métrica.')}", icon="ℹ️")
+
         title_suffix = ""
         if selected_continent != "Global (Todos)":
             data_to_analyze = latest_countries_only[latest_countries_only['continent'] == selected_continent]
@@ -917,22 +938,24 @@ def render_tab_factores(df_latest, metrics_df):
             # Aplicar filtro de outliers (local de la pestaña)
             if not include_outliers:
                 if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
-                    Q1 = data_df[selected_metric].quantile(0.25)
-                    Q3 = data_df[selected_metric].quantile(0.75)
-                    IQR = Q3 - Q1 if (Q3 - Q1) > 0 else 1 
-                    lower_bound = Q1 - 1.5 * IQR
-                    upper_bound = Q3 + 1.5 * IQR
+                    Q1_filter = data_df[selected_metric].quantile(0.25)
+                    Q3_filter = data_df[selected_metric].quantile(0.75)
+                    IQR = Q3_filter - Q1_filter if (Q3_filter - Q1_filter) > 0 else 1 
+                    lower_bound = Q1_filter - 1.5 * IQR
+                    upper_bound = Q3_filter + 1.5 * IQR
                     data_df = data_df[(data_df[selected_metric] >= lower_bound) & (data_df[selected_metric] <= upper_bound)]
             
             if not data_df.empty:
                 values = data_df[selected_metric]
         
-        main_col1, main_col2 = st.columns([1, 1])
+        # 2. Reestructurar layout
+        main_col1, main_col2 = st.columns([1, 2]) # 1 parte para texto, 2 para gráfico
+        
         with main_col1:
             st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
                 
-                # --- Arreglar tarjetas truncadas (Grid 2x2) ---
+                # KPIs
                 row1_col1, row1_col2 = st.columns(2)
                 with row1_col1:
                     st.metric("Media", formatar_numero_grande(values.mean()))
@@ -944,12 +967,23 @@ def render_tab_factores(df_latest, metrics_df):
                     st.metric("Desv. Std", formatar_numero_grande(values.std()))
                 with row2_col2:
                     st.metric("N (Países)", f"{len(values)}")
-                # --- Fin  ---
+                
+                # 3. Añadir Insight
+                st.markdown("---")
+                st.markdown("##### Análisis Rápido")
+                Q1 = values.quantile(0.25)
+                Q3 = values.quantile(0.75)
+                median = values.median()
+                unit = "%" if selected_name and "%" in selected_name else ""
+                
+                st.info(f"""
+                * **Mediana:** El valor central es **{formatar_numero_grande(median)}{unit}**.
+                * **Rango Intercuartílico (IQR):** El 50% de los países se encuentra entre **{formatar_numero_grande(Q1)}{unit}** (Q1) y **{formatar_numero_grande(Q3)}{unit}** (Q3).
+                """)
 
         with main_col2:
             st.markdown(f'<div class="section-title">Distribución ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
             
-            # --- ¡INICIO DE LA CORRECCIÓN DEL HISTOGRAMA! ---
             data_for_hist = data_df.copy()
             log_scale_active = use_log_scale
             
@@ -967,23 +1001,21 @@ def render_tab_factores(df_latest, metrics_df):
                     data_for_hist, # <--- Usar data_for_hist
                     x=selected_metric, 
                     nbins=50, 
-                    title=f"Histograma", 
+                    title=f"Histograma de Distribución Global", 
                     template='plotly_white', 
-                    color="continent", 
+                    # color="continent", # <--- ¡ELIMINADO! Simplifica el gráfico
                     hover_data=['location'],
                     log_x=log_scale_active # <--- Usar log_scale_active
                 )
                 fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
                 fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
                 st.plotly_chart(fig_hist, use_container_width=True) 
-            # --- FIN DE LA CORRECCIÓN ---
 
         # ---  Diagrama de Cajas (Box Plot) ---
         st.markdown("---")
         st.markdown(f'<div class="section-title">Comparación por Continente ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
-        st.markdown("Un **Diagrama de Cajas** es ideal para comparar las distribuciones (mediana, rangos) entre continentes.")
+        st.markdown("El **Histograma** de arriba muestra la forma global. Este **Diagrama de Cajas** es mejor para comparar las distribuciones entre continentes.")
         
-        # --- ¡INICIO DE LA CORRECCIÓN DEL BOX PLOT! ---
         data_for_box = data_df.copy()
         log_scale_box_active = use_log_scale
         
@@ -1008,7 +1040,7 @@ def render_tab_factores(df_latest, metrics_df):
             )
             fig_box.update_layout(yaxis_title="Continente", xaxis_title=selected_name)
             st.plotly_chart(fig_box, use_container_width=True)
-        # --- FIN DE LA CORRECCIÓN ---
+        # --- FIN DE LA MEJORA DE COMPRENSIÓN ---
 
     st.markdown("---")
 
