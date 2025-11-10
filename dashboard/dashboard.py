@@ -170,7 +170,12 @@ TRANSLATIONS = {
     'excess_mortality_cumulative_absolute': 'Mortalidad Excedente Acumulada Absoluta',
     'excess_mortality_cumulative_per_million': 'Mortalidad Excedente Acumulada por Millón',
 
+    # --- INICIO DE LA CORRECCIÓN ---
+    #
     # Características calculadas (Feature Engineering)
+    # Se corrigieron las claves para que coincidan con feature_engineer.py
+    # Se eliminaron las traducciones _ma7 para evitar duplicados con _smoothed
+    
     'cases_per_million': 'Casos por Millón',
     'deaths_per_million': 'Muertes por Millón',
     'case_fatality_rate': 'Tasa de Letalidad (%)',
@@ -178,19 +183,21 @@ TRANSLATIONS = {
     'vaccination_coverage': 'Cobertura de Vacunación (%)',
     'icu_to_hospitalized_ratio': 'Ratio UCI/Hospitalizados (%)',
 
-    'new_cases_ma7': 'Nuevos Casos (media 7 días)',
-    'new_deaths_ma7': 'Nuevas Muertes (media 7 días)',
-    'new_tests_ma7': 'Nuevos Tests (media 7 días)',
-    'new_vaccinations_ma7': 'Nuevas Vacunaciones (media 7 días)',
+    # Claves _ma14 (antes _14day_avg)
     'new_cases_ma14': 'Nuevos Casos (media 14 días)',
     'new_deaths_ma14': 'Nuevas Muertes (media 14 días)',
     'new_tests_ma14': 'Nuevos Tests (media 14 días)',
     'new_vaccinations_ma14': 'Nuevas Vacunaciones (media 14 días)',
 
+    # Claves de Crecimiento
     'total_cases_growth_rate': 'Tasa de Crecimiento de Casos',
     'total_deaths_growth_rate': 'Tasa de Crecimiento de Muertes',
     'total_vaccinations_growth_rate': 'Tasa de Crecimiento de Vacunaciones',
     
+    # (Traducciones _lag_ eliminadas, ya que se ocultan en VISUALIZATION_EXCLUDE_METRICS)
+    #
+    # --- FIN DE LA CORRECCIÓN ---
+
     # Ubicación
     'location': 'País/Región',
     'iso_code': 'Código ISO',
