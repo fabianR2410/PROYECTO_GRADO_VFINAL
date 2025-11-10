@@ -81,6 +81,19 @@ DEMOGRAPHIC_FACTORS = [
     'life_expectancy', 'human_development_index'
 ]
 
+# --- ¡NUEVO! Listas para el "Heatmap Inteligente" ---
+METRICS_HIGHER_IS_BETTER = [
+    'people_vaccinated_per_hundred', 'people_fully_vaccinated_per_hundred', 'total_boosters_per_hundred',
+    'total_vaccinations_per_hundred', 'total_tests_per_thousand', 'gdp_per_capita', 
+    'handwashing_facilities', 'hospital_beds_per_thousand', 'life_expectancy', 'human_development_index'
+]
+
+METRICS_LOWER_IS_BETTER = [
+    'total_cases_per_million', 'total_deaths_per_million', 'case_fatality_rate', 'positive_rate',
+    'icu_patients_per_million', 'hosp_patients_per_million', 'extreme_poverty', 
+    'cardiovasc_death_rate', 'diabetes_prevalence', 'female_smokers', 'male_smokers'
+]
+
 # =============================================================================
 # --- 2. FUNCIONES DE UTILIDAD (Formato, Traducción, Selectores) ---
 # =============================================================================
@@ -764,26 +777,56 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                 else:
                     comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
                     table_data = comp_data.set_index('location')[existing_cols_table] 
-                    table_data.columns = [translate_column(c) for c in table_data.columns]
-                    st.dataframe(table_data.style.format("{:,.1f}", na_rep="N/A").background_gradient(cmap='Blues', axis=0), use_container_width=True) 
+                    
+                    # --- ¡MEJORA! Reemplazar gradiente con barras ---
+                    st.dataframe(table_data.rename(columns=TRANSLATIONS).style.format("{:,.1f}", na_rep="N/A").bar(color='#0066cc', align='left', vmin=0), use_container_width=True)
+                    # --- FIN DE LA MEJORA --- 
 
                     st.markdown("---")
                     st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
+                    st.markdown("Puntaje normalizado (1 = Mejor, 0 = Peor) para cada métrica.")
+                    
                     df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() 
+                    
                     if not df_to_norm.empty:
-                        df_norm = (df_to_norm - df_to_norm.min(axis=0)) / (df_to_norm.max(axis=0) - df_to_norm.min(axis=0))
-                        df_norm.columns = [translate_column(c) for c in df_norm.columns]
+                        
+                        # --- ¡INICIO DE LA MEJORA: HEATMAP INTELIGENTE! ---
+                        df_norm_smart = df_to_norm.copy()
+                        for metric in df_norm_smart.columns:
+                            col_data = df_norm_smart[metric]
+                            min_val = col_data.min()
+                            max_val = col_data.max()
+                            range_val = max_val - min_val
+                            
+                            if range_val == 0:
+                                df_norm_smart[metric] = 0.5 # Neutral
+                                continue
+
+                            if metric in METRICS_HIGHER_IS_BETTER:
+                                # Normal: 1 es el más alto
+                                df_norm_smart[metric] = (col_data - min_val) / range_val
+                            elif metric in METRICS_LOWER_IS_BETTER:
+                                # Invertida: 1 es el más bajo
+                                df_norm_smart[metric] = 1 - ((col_data - min_val) / range_val)
+                            else:
+                                # Por defecto, asumir que más bajo es mejor (ej. casos, muertes)
+                                df_norm_smart[metric] = 1 - ((col_data - min_val) / range_val)
+
+                        # Traducir columnas DESPUÉS de normalizar
+                        df_norm_smart.columns = [translate_column(c) for c in df_norm_smart.columns]
                         
                         fig_heat = px.imshow(
-                            df_norm.T, 
+                            df_norm_smart.T, 
                             text_auto=True,
                             aspect="auto",
-                            color_continuous_scale='RdYlGn', 
+                            color_continuous_scale='RdYlGn', # Rojo (0) a Verde (1)
                             title="Comparación Normalizada (0=Peor, 1=Mejor)"
                         )
                         fig_heat.update_traces(texttemplate="%{z:.2f}") 
                         fig_heat.update_layout(height=max(400, len(existing_cols_table) * 70))
-                        st.plotly_chart(fig_heat, use_container_width=True) 
+                        st.plotly_chart(fig_heat, use_container_width=True)
+                        # --- FIN DE LA MEJORA: HEATMAP INTELIGENTE! ---
+                        
                     else:
                         st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
 
