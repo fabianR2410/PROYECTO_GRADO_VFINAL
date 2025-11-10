@@ -36,27 +36,40 @@ AGGREGATES = ['world', 'europe', 'asia', 'africa', 'north america', 'south ameri
               'european union', 'high income', 'upper middle income', 'lower middle income', 'low income']
 
 # --- Listas de Métricas  ---
+
+# ¡NUEVO! Métricas de ingeniería que no son útiles para visualización
+VISUALIZATION_EXCLUDE_METRICS = [
+    # Métricas de Lag (Desfase)
+    'new_cases_lag_1', 'new_cases_lag_7', 'new_cases_lag_14',
+    'new_deaths_lag_1', 'new_deaths_lag_7', 'new_deaths_lag_14',
+    'new_tests_lag_1', 'new_tests_lag_7', 'new_tests_lag_14',
+    'new_vaccinations_lag_1', 'new_vaccinations_lag_7', 'new_vaccinations_lag_14',
+    
+    # Métricas de Diff (Diferencia)
+    'new_cases_diff', 'new_deaths_diff',
+
+    # Features temporales que no se grafican
+    'year', 'month', 'day', 'day_of_week', 'week_of_year', 'quarter', 'is_weekend'
+]
+
 CROSS_SECTIONAL_EXCLUDE_METRICS = [
     'new_cases', 'new_deaths', 'new_tests', 'new_vaccinations', 
     'new_cases_smoothed', 'new_deaths_smoothed', 'new_tests_smoothed', 'new_vaccinations_smoothed', 
     'new_cases_per_million', 'new_deaths_per_million', 'new_cases_smoothed_per_million', 
     'new_deaths_smoothed_per_million', 'weekly_icu_admissions', 'weekly_hosp_admissions', 
     'weekly_icu_admissions_per_million', 'weekly_hosp_admissions_per_million'
-]
+] + VISUALIZATION_EXCLUDE_METRICS # <- AÑADIDO
+
 STATIC_METRICS_EXCLUDE_LIST = [
     'population', 'population_density', 'median_age', 'aged_65_older', 
     'aged_70_older', 'gdp_per_capita', 'extreme_poverty', 'cardiovasc_death_rate', 
     'diabetes_prevalence', 'female_smokers', 'male_smokers', 'handwashing_facilities', 
     'hospital_beds_per_thousand', 'life_expectancy', 'human_development_index'
-]
-CUMULATIVE_METRICS_EXCLUDE_LIST = [
-    'total_cases', 'total_deaths', 'total_tests', 'total_vaccinations', 
-    'people_vaccinated', 'people_fully_vaccinated', 'total_boosters',
-    'total_cases_per_million', 'total_deaths_per_million', 
-    'total_tests_per_thousand', 'total_vaccinations_per_hundred', 
-    'people_vaccinated_per_hundred', 'people_fully_vaccinated_per_hundred', 
-    'total_boosters_per_hundred'
-]
+] + VISUALIZATION_EXCLUDE_METRICS # <- AÑADIDO
+
+# --- ELIMINADO ---
+# Se eliminó CUMULATIVE_METRICS_EXCLUDE_LIST porque no se usaba.
+
 PIE_ALLOWED_METRICS = [
     'total_cases', 'total_deaths', 'people_vaccinated', 
     'people_fully_vaccinated', 'total_boosters'
@@ -157,22 +170,27 @@ TRANSLATIONS = {
     'excess_mortality_cumulative_absolute': 'Mortalidad Excedente Acumulada Absoluta',
     'excess_mortality_cumulative_per_million': 'Mortalidad Excedente Acumulada por Millón',
 
-    # Características calculadas
+    # Características calculadas (Feature Engineering)
     'cases_per_million': 'Casos por Millón',
     'deaths_per_million': 'Muertes por Millón',
     'case_fatality_rate': 'Tasa de Letalidad (%)',
     'death_rate': 'Tasa de Mortalidad',
-    'new_cases_7day_avg': 'Nuevos Casos (promedio 7 días)',
-    'new_deaths_7day_avg': 'Nuevas Muertes (promedio 7 días)',
-    'new_cases_14day_avg': 'Nuevos Casos (promedio 14 días)',
-    'new_deaths_14day_avg': 'Nuevas Muertes (promedio 14 días)',
-    'cases_growth_rate': 'Tasa de Crecimiento de Casos',
-    'deaths_growth_rate': 'Tasa de Crecimiento de Muertes',
-    'new_cases_lag_1': 'Nuevos Casos (día anterior)',
-    'new_cases_lag_7': 'Nuevos Casos (hace 7 días)',
-    'new_deaths_lag_1': 'Nuevas Muertes (día anterior)',
-    'new_deaths_lag_7': 'Nuevas Muertes (hace 7 días)',
+    'vaccination_coverage': 'Cobertura de Vacunación (%)',
+    'icu_to_hospitalized_ratio': 'Ratio UCI/Hospitalizados (%)',
 
+    'new_cases_ma7': 'Nuevos Casos (media 7 días)',
+    'new_deaths_ma7': 'Nuevas Muertes (media 7 días)',
+    'new_tests_ma7': 'Nuevos Tests (media 7 días)',
+    'new_vaccinations_ma7': 'Nuevas Vacunaciones (media 7 días)',
+    'new_cases_ma14': 'Nuevos Casos (media 14 días)',
+    'new_deaths_ma14': 'Nuevas Muertes (media 14 días)',
+    'new_tests_ma14': 'Nuevos Tests (media 14 días)',
+    'new_vaccinations_ma14': 'Nuevas Vacunaciones (media 14 días)',
+
+    'total_cases_growth_rate': 'Tasa de Crecimiento de Casos',
+    'total_deaths_growth_rate': 'Tasa de Crecimiento de Muertes',
+    'total_vaccinations_growth_rate': 'Tasa de Crecimiento de Vacunaciones',
+    
     # Ubicación
     'location': 'País/Región',
     'iso_code': 'Código ISO',
