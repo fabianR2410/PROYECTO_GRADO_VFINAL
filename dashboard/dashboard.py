@@ -411,6 +411,51 @@ def get_full_history(country):
         st.error(f"Error cargando el historial para '{country}': {e}")
         return pd.DataFrame()
 
+# --- ¡NUEVA FUNCIÓN! (Para Mejora 3 en Pestaña 3) ---
+@st.cache_data(ttl=600) # Caché por 10 minutos
+def get_comparison_timeseries(countries_list, metric, start_date, end_date):
+    """
+    Obtiene datos de series de tiempo para múltiples países y una métrica.
+    """
+    try:
+        api_params = {
+            'countries': ",".join(countries_list),
+            'metric': metric,
+            'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
+            'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
+        }
+        # Timeout de 30s, asume que la API ya está "despierta" por las cargas anteriores
+        response = requests.get(f"{API_BASE_URL}/covid/compare-timeseries", params=api_params, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json().get('comparison_data', {})
+        if not data:
+            st.warning("No se encontraron datos de series de tiempo para la comparación.")
+            return pd.DataFrame()
+
+        # Aplanar el JSON de respuesta en un solo DataFrame
+        all_dfs = []
+        for country, records in data.items():
+            if records:
+                df = pd.DataFrame(records)
+                df['location'] = country
+                all_dfs.append(df)
+        
+        if not all_dfs:
+            return pd.DataFrame()
+
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        if 'date' in combined_df.columns:
+            combined_df['date'] = pd.to_datetime(combined_df['date'])
+        
+        # Renombrar la métrica a un valor genérico para graficar fácilmente
+        combined_df = combined_df.rename(columns={metric: 'metric_value'})
+        return combined_df
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error cargando datos de comparación: {e}")
+        return pd.DataFrame()
+
 # =============================================================================
 # --- 5. FUNCIONES DE PESTAÑA (Lógica de cada Tab) ---
 # =============================================================================
@@ -481,23 +526,30 @@ def render_tab_global(df_latest, metrics_df):
                     
                     if not pie_data.empty:
                         
-                        pie_data_sorted = pie_data.sort_values(by=selected_metric_bar, ascending=True)
-                        fig_bar = px.bar(
-                            pie_data_sorted,
-                            x=selected_metric_bar,
-                            y='continent',
-                            orientation='h',
+                        # --- ¡MEJORA 2! Reemplazar Bar con Treemap ---
+                        fig_treemap = px.treemap(
+                            pie_data,
+                            path=['continent'], # Jerarquía
+                            values=selected_metric_bar, # Tamaño de los rectángulos
+                            color=selected_metric_bar, # Color basado en el tamaño
+                            color_continuous_scale='Blues',
                             title=f'Distribución de {selected_name_bar} por Continente',
                             template="plotly_white",
-                            text=selected_metric_bar
+                            hover_data={
+                                'continent': False,
+                                selected_metric_bar: ':.0f'
+                            }
                         )
-                        fig_bar.update_traces(texttemplate='%{text:,.2s}', textposition='outside')
-                        fig_bar.update_layout(
+                        fig_treemap.update_layout(
                             height=600, margin=dict(l=0, r=0, t=40, b=0),
-                            yaxis_title="Continente", 
-                            xaxis_title=selected_name_bar
                         )
-                        st.plotly_chart(fig_bar, use_container_width=True)
+                        fig_treemap.update_traces(
+                            textinfo="label+value+percent root",
+                            texttemplate="<b>%{label}</b><br>%{value:,.0f}<br>(%{percentRoot:.1%})"
+                        )
+                        st.plotly_chart(fig_treemap, use_container_width=True)
+                        # --- FIN DE LA MEJORA 2 ---
+
                     else:
                         st.warning("No se encontraron datos de países para agrupar por continente.")
                 else:
@@ -552,6 +604,28 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         if df_historia.empty:
             st.warning(f"No se pudieron cargar datos para {selected_country}.")
             st.stop()
+        
+        # --- ¡MEJORA 1! ---
+        # Mostrar KPIs demográficos estáticos
+        st.markdown(f'<div class="section-title">Contexto Demográfico ({selected_country})</div>', unsafe_allow_html=True)
+        
+        # Obtener los datos de la primera fila disponible (son estáticos)
+        latest_data = df_historia.iloc[-1] 
+        
+        kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+        with kpi_col1:
+            st.metric("Población Total", 
+                      formatar_numero_grande(latest_data.get('population', 0)))
+        with kpi_col2:
+            st.metric("PIB per Cápita", 
+                      f"${formatar_numero_grande(latest_data.get('gdp_per_capita', 0))}")
+        with kpi_col3:
+            st.metric("Edad Mediana", 
+                      f"{latest_data.get('median_age', 0):.1f} años")
+        with kpi_col4:
+            st.metric("Esperanza de Vida", 
+                      f"{latest_data.get('life_expectancy', 0):.1f} años")
+        # --- FIN DE LA MEJORA 1 ---
             
         # Filtrar el DataFrame local por fecha
         try:
@@ -643,7 +717,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         st.info("Selecciona al menos una métrica para graficar.")
 
 # --- FUNCIÓN Pestaña 3: Comparaciones  ---
-def render_tab_comparativo(df_latest, metrics_df): 
+def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date): # <- AÑADIDO RANGO DE FECHAS
     """LÓGICA PARA LA PESTAÑA 3: COMPARACIONES (PAÍSES)"""
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
@@ -749,6 +823,58 @@ def render_tab_comparativo(df_latest, metrics_df):
                 st.warning("Por favor, selecciona al menos un país en el filtro de arriba.")
             else:
                 st.info("Selecciona al menos una métrica para la tabla/heatmap.")
+
+    # --- ¡MEJORA 3! ---
+    st.markdown("---")
+    st.markdown('<div class="section-title">📈 Comparación de Series de Tiempo</div>', unsafe_allow_html=True)
+    
+    with st.container(border=False):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            selected_metric_ts, selected_name_ts = create_translated_selectbox(
+                "Métrica (Serie de Tiempo)",
+                metrics_df, 
+                exclude_cols=STATIC_METRICS_EXCLUDE_LIST, # Excluir estáticos
+                key="metric_comp_ts",
+                default_col='new_cases_smoothed_per_million'
+            )
+        with col2:
+            date_range_ts = st.date_input(
+                "Rango de Fechas (Serie de Tiempo)",
+                value=(data_min_date, data_max_date), 
+                min_value=data_min_date, max_value=data_max_date,
+                key="comp_ts_date_range"
+            )
+        use_log_ts = st.checkbox("Usar escala logarítmica (Serie de Tiempo)", key="log_comp_ts")
+
+    if selected_countries and selected_metric_ts and len(date_range_ts) == 2:
+        with st.spinner(f"Cargando {selected_name_ts} para {len(selected_countries)} países..."):
+            df_comparison = get_comparison_timeseries(
+                selected_countries, 
+                selected_metric_ts,
+                date_range_ts[0],
+                date_range_ts[1]
+            )
+        
+        if not df_comparison.empty and 'metric_value' in df_comparison.columns:
+            fig_ts = px.line(
+                df_comparison,
+                x='date',
+                y='metric_value',
+                color='location', # Una línea por país
+                title=f"Evolución de {selected_name_ts}",
+                template="plotly_white",
+                labels={'metric_value': selected_name_ts, 'location': 'País'},
+                hover_data={'location': True, 'date': '|%Y-%m-%d', 'metric_value': ':.1f'}
+            )
+            fig_ts.update_layout(hovermode='x unified')
+            if use_log_ts:
+                fig_ts.update_yaxes(type="log")
+            
+            st.plotly_chart(fig_ts, use_container_width=True)
+        else:
+            st.warning("No se encontraron datos para la comparación de series de tiempo con los filtros seleccionados.")
+    # --- FIN MEJORA 3 ---
 
 
 # --- FUNCIÓN Pestaña 4: Factores y Correlaciones  ---
@@ -1067,7 +1193,8 @@ def main():
     with tab_pais:
         render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
-        render_tab_comparativo(df_latest, metrics_df) 
+        # ¡MEJORA 3! - Pasar las fechas
+        render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date) 
     with tab_factores:
         render_tab_factores(df_latest, metrics_df) 
     with tab_arquitectura:
