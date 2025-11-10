@@ -433,8 +433,6 @@ def get_full_history(country):
         st.error(f"Error cargando el historial para '{country}': {e}")
         return pd.DataFrame()
 
-# --- ¡FUNCIÓN ELIMINADA! ---
-# Se eliminó get_comparison_timeseries ya que la funcionalidad se quitó.
 
 
 # =============================================================================
