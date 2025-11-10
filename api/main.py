@@ -5,6 +5,7 @@ COVID-19 Data API (Versión 2.8.0 - Reactivado)
 - API optimizada para servir al dashboard de Streamlit.
 - ¡RE-AÑADIDO! Se reactivó el endpoint /covid/compare-timeseries
   para dar soporte a la Mejora 3 (gráfico de comparación) del dashboard.
+- ¡CORREGIDO! Corregido el bug del pattern (regex) en end_date.
 - Mantiene la carga del ETL desde el CSV local al iniciar.
 """
 from fastapi import FastAPI, HTTPException, Query, Depends, status
@@ -216,6 +217,8 @@ async def compare_timeseries(
     countries: str = Query(..., description="Lista de países separados por comas (ej: Ecuador,Peru,Colombia)"),
     metric: str = Query("new_cases_smoothed", description="Métrica a comparar"),
     start_date: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    
+    # --- ¡ESTA ES LA LÍNEA CORREGIDA! ---
     end_date: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
 ):
     """
