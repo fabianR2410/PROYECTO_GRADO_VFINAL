@@ -67,12 +67,18 @@ STATIC_METRICS_EXCLUDE_LIST = [
     'hospital_beds_per_thousand', 'life_expectancy', 'human_development_index'
 ] + VISUALIZATION_EXCLUDE_METRICS # <- AÑADIDO
 
-# --- ELIMINADO ---
-# Se eliminó CUMULATIVE_METRICS_EXCLUDE_LIST porque no se usaba.
-
 PIE_ALLOWED_METRICS = [
     'total_cases', 'total_deaths', 'people_vaccinated', 
     'people_fully_vaccinated', 'total_boosters'
+]
+
+# --- ¡NUEVO! Lista de factores para la Mejora 2 en Pestaña 4 ---
+DEMOGRAPHIC_FACTORS = [
+    'population_density', 'median_age', 'aged_65_older', 'aged_70_older', 
+    'gdp_per_capita', 'extreme_poverty', 'cardiovasc_death_rate', 
+    'diabetes_prevalence', 'female_smokers', 'male_smokers', 
+    'handwashing_facilities', 'hospital_beds_per_thousand', 
+    'life_expectancy', 'human_development_index'
 ]
 
 # =============================================================================
@@ -169,12 +175,6 @@ TRANSLATIONS = {
     'excess_mortality_cumulative': 'Mortalidad Excedente Acumulada',
     'excess_mortality_cumulative_absolute': 'Mortalidad Excedente Acumulada Absoluta',
     'excess_mortality_cumulative_per_million': 'Mortalidad Excedente Acumulada por Millón',
-
-    # --- INICIO DE LA CORRECCIÓN ---
-    #
-    # Características calculadas (Feature Engineering)
-    # Se corrigieron las claves para que coincidan con feature_engineer.py
-    # Se eliminaron las traducciones _ma7 para evitar duplicados con _smoothed
     
     'cases_per_million': 'Casos por Millón',
     'deaths_per_million': 'Muertes por Millón',
@@ -183,21 +183,15 @@ TRANSLATIONS = {
     'vaccination_coverage': 'Cobertura de Vacunación (%)',
     'icu_to_hospitalized_ratio': 'Ratio UCI/Hospitalizados (%)',
 
-    # Claves _ma14 (antes _14day_avg)
     'new_cases_ma14': 'Nuevos Casos (media 14 días)',
     'new_deaths_ma14': 'Nuevas Muertes (media 14 días)',
     'new_tests_ma14': 'Nuevos Tests (media 14 días)',
     'new_vaccinations_ma14': 'Nuevas Vacunaciones (media 14 días)',
 
-    # Claves de Crecimiento
     'total_cases_growth_rate': 'Tasa de Crecimiento de Casos',
     'total_deaths_growth_rate': 'Tasa de Crecimiento de Muertes',
     'total_vaccinations_growth_rate': 'Tasa de Crecimiento de Vacunaciones',
     
-    # (Traducciones _lag_ eliminadas, ya que se ocultan en VISUALIZATION_EXCLUDE_METRICS)
-    #
-    # --- FIN DE LA CORRECCIÓN ---
-
     # Ubicación
     'location': 'País/Región',
     'iso_code': 'Código ISO',
@@ -959,7 +953,7 @@ def render_tab_factores(df_latest, metrics_df):
             data_for_hist = data_df.copy()
             log_scale_active = use_log_scale
             
-            if use_log_scale:
+            if use_log_scale and selected_metric in data_for_hist.columns:
                 if (data_for_hist[selected_metric] <= 0).any():
                     st.warning("⚠️ Se han filtrado valores 0 o negativos para aplicar la escala logarítmica.", icon="ℹ️")
                     data_for_hist = data_for_hist[data_for_hist[selected_metric] > 0]
@@ -968,7 +962,7 @@ def render_tab_factores(df_latest, metrics_df):
                     log_scale_active = False
                     data_for_hist = data_df 
             
-            if pd.api.types.is_numeric_dtype(values) and not values.empty:
+            if pd.api.types.is_numeric_dtype(values) and not values.empty and not data_for_hist.empty:
                 fig_hist = px.histogram(
                     data_for_hist, # <--- Usar data_for_hist
                     x=selected_metric, 
@@ -993,14 +987,14 @@ def render_tab_factores(df_latest, metrics_df):
         data_for_box = data_df.copy()
         log_scale_box_active = use_log_scale
         
-        if use_log_scale:
+        if use_log_scale and selected_metric in data_for_box.columns:
             if (data_for_box[selected_metric] <= 0).any():
                 data_for_box = data_for_box[data_for_box[selected_metric] > 0]
             if data_for_box.empty:
                 log_scale_box_active = False
                 data_for_box = data_df
 
-        if pd.api.types.is_numeric_dtype(values) and not values.empty:
+        if pd.api.types.is_numeric_dtype(values) and not values.empty and not data_for_box.empty:
             fig_box = px.box(
                 data_for_box, # <--- Usar data_for_box
                 x=selected_metric,
@@ -1015,6 +1009,84 @@ def render_tab_factores(df_latest, metrics_df):
             fig_box.update_layout(yaxis_title="Continente", xaxis_title=selected_name)
             st.plotly_chart(fig_box, use_container_width=True)
         # --- FIN DE LA CORRECCIÓN ---
+
+    st.markdown("---")
+
+    # --- ¡MEJORA 2! DESCUBRIDOR DE CORRELACIONES ---
+    st.markdown('<div class="section-title">🔗 Descubridor de Correlaciones Clave</div>', unsafe_allow_html=True)
+    st.markdown("""
+    Esta sección calcula automáticamente qué factores socioeconómicos tienen la correlación
+    más fuerte (positiva o negativa) con una métrica de resultado que elijas. 
+    Usa el método **Spearman** (bueno para relaciones no lineales).
+    """)
+
+    with st.container(border=False):
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            outcome_options = ['total_deaths_per_million', 'total_cases_per_million', 'case_fatality_rate', 'people_fully_vaccinated_per_hundred', 'icu_patients_per_million']
+            # Asegurarse de que las opciones existan en el DF
+            available_outcome_options = [opt for opt in outcome_options if opt in metrics_df.columns]
+            
+            selected_outcome, selected_outcome_name = create_translated_selectbox(
+                "Métrica de Resultado", 
+                metrics_df, 
+                include_only=available_outcome_options, 
+                key="outcome_metric", 
+                default_col='total_deaths_per_million'
+            )
+        
+        if selected_outcome:
+            # Definir factores para probar
+            covid_factors = ['people_fully_vaccinated_per_hundred', 'positive_rate', 'stringency_index', 'reproduction_rate']
+            all_factors = [
+                f for f in DEMOGRAPHIC_FACTORS + covid_factors 
+                if f in latest_countries_only.columns and f != selected_outcome
+            ]
+            
+            # Calcular correlaciones
+            cols_to_correlate = [selected_outcome] + all_factors
+            corr_data = latest_countries_only[cols_to_correlate].dropna()
+            
+            if len(corr_data) < 10:
+                st.warning("No hay suficientes datos de países (después de eliminar nulos) para calcular correlaciones fiables.")
+            else:
+                corr_matrix = corr_data.corr(method='spearman')
+                
+                # Obtener la serie de correlaciones para la métrica de resultado
+                corr_series = corr_matrix[selected_outcome].drop(selected_outcome)
+                
+                # Ordenar por valor absoluto para encontrar las más fuertes
+                strongest_corr_series = corr_series.abs().sort_values(ascending=False).index
+                top_15_corr = corr_series.loc[strongest_corr_series[:15]].sort_values(ascending=True) # Sort ascending for plot
+                
+                # Convertir a DataFrame para graficar
+                df_corr_plot = top_15_corr.reset_index().rename(columns={'index': 'Factor', selected_outcome: 'Correlación'})
+                
+                # Traducir los factores para el gráfico
+                df_corr_plot['Factor'] = df_corr_plot['Factor'].apply(translate_column)
+                
+                df_corr_plot['Tipo'] = ['Positiva' if c > 0 else 'Negativa' for c in df_corr_plot['Correlación']]
+                
+                fig_corr_bar = px.bar(
+                    df_corr_plot,
+                    x='Correlación',
+                    y='Factor',
+                    orientation='h',
+                    title=f"Factores con Mayor Correlación con '{selected_outcome_name}'",
+                    template='plotly_white',
+                    color='Tipo',
+                    color_discrete_map={'Positiva': '#0066cc', 'Negativa': '#dc3545'},
+                    text='Correlación'
+                )
+                fig_corr_bar.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig_corr_bar.update_layout(
+                    height=600, 
+                    xaxis_title="Coeficiente de Correlación de Spearman",
+                    yaxis_title="Factor Socioeconómico / Métrico",
+                    legend_title="Tipo de Correlación"
+                )
+                st.plotly_chart(fig_corr_bar, use_container_width=True)
+    # --- FIN DE LA MEJORA 2 ---
 
     st.markdown("---")
 
