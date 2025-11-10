@@ -176,7 +176,6 @@ async def root():
             "/covid/metrics": "Get list of available metrics",
             "/covid/latest": "Get latest data for all or specific countries",
             "/covid/country-history": "Get full history for one country",
-            "/covid/compare-timeseries": "[RE-ACTIVADO] Compare time series for multiple countries",
         },
          "admin_endpoints": {
              "POST /admin/reload-data": "Trigger manual ETL reload from CSV"
