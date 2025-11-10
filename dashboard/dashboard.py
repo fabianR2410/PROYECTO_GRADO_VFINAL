@@ -287,7 +287,7 @@ st.markdown("""
 
     /* Fondo de la app (coincide con config.toml) */
     .stApp {
-        background-color: #f0f2f5;
+        background-color: #f8faff; /* <--- ¡NUEVO FONDO! (era #f0f2f5) */
     }
 
     /* Ocultar elementos de Streamlit */
@@ -321,6 +321,7 @@ st.markdown("""
         padding: 24px;
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08); /* Sombra suave */
         border: 1px solid #E0E0E0; /* Borde muy sutil */
+        border-top: 4px solid #4F46E5; /* <--- ¡NUEVO BORDE SUPERIOR DE ACENTO! */
     }
 
     /* Estilo de las Métricas (KPIs) */
@@ -330,6 +331,8 @@ st.markdown("""
         padding: 24px;
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
         border: 1px solid #E0E0E0;
+        border-left: 4px solid #4F46E5; /* <--- ¡NUEVO BORDE IZQUIERDO DE ACENTO! */
+        padding-left: 28px; /* <--- Añadimos padding para compensar el borde */
     }
 
     /* Pestañas (Tabs) */
@@ -339,6 +342,7 @@ st.markdown("""
         border-radius: 12px;
         padding: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        border-top: 0px; /* <--- Asegurarnos que las pestañas no tengan el borde superior */
     }
     .stTabs [data-baseweb="tab"] {
         background-color: transparent;
@@ -346,13 +350,14 @@ st.markdown("""
         border-radius: 8px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #e7f3ff; /* Color de pestaña seleccionada (azul claro) */
-        color: #0066cc; /* Color primario */
+        background-color: #eef2ff; /* Color de pestaña seleccionada (índigo claro) */
+        color: #4F46E5; /* Color primario (índigo) */
     }
     
     .status-badge {
         display: inline-block; padding: 4px 12px; border-radius: 20px;
         font-size: 12px; font-weight: 600; background-color: #28a745; color: white;
+        border-top: 0px; /* <--- Asegurarnos que el badge no tenga el borde superior */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -468,7 +473,9 @@ def render_tab_global(df_latest, metrics_df):
                     locations=map_data['iso_code'],
                     z=map_data[selected_metric_map],
                     text=map_data['location'],
-                    colorscale='Blues', autocolorscale=False, reversescale=False,
+                    colorscale='Viridis', # <--- ¡CAMBIO DE COLOR!
+                    autocolorscale=False, 
+                    reversescale=True, # <--- ¡AÑADIDO! Se ve mejor con Viridis
                     marker_line_color='darkgray', marker_line_width=0.5,
                     colorbar_title=selected_name_map,
                     hovertemplate='<b>%{text}</b><br>' + f'{selected_name_map}: %{{z:,.0f}}<extra></extra>'
@@ -511,7 +518,7 @@ def render_tab_global(df_latest, metrics_df):
                             path=['continent'], # Jerarquía
                             values=selected_metric_bar, # Tamaño de los rectángulos
                             color=selected_metric_bar, # Color basado en el tamaño
-                            color_continuous_scale='Blues', # <--- ¡LÍNEA CORREGIDA!
+                            color_continuous_scale='YlGnBu', # <--- ¡CAMBIO DE COLOR!
                             title=f'Distribución de {selected_name_bar} por Continente',
                             template="plotly_white",
                             hover_data={
@@ -593,16 +600,16 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         
         kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
         with kpi_col1:
-            st.metric("Población Total", 
+            st.metric("👥 Población Total", # <--- ¡EMOJI AÑADIDO!
                       formatar_numero_grande(latest_data.get('population', 0)))
         with kpi_col2:
-            st.metric("PIB per Cápita", 
+            st.metric("💰 PIB per Cápita", # <--- ¡EMOJI AÑADIDO!
                       f"${formatar_numero_grande(latest_data.get('gdp_per_capita', 0))}")
         with kpi_col3:
-            st.metric("Edad Mediana", 
+            st.metric("🧍 Edad Mediana", # <--- ¡EMOJI AÑADIDO!
                       f"{latest_data.get('median_age', 0):.1f} años")
         with kpi_col4:
-            st.metric("Esperanza de Vida", 
+            st.metric("❤️ Esperanza de Vida", # <--- ¡EMOJI AÑADIDO!
                       f"{latest_data.get('life_expectancy', 0):.1f} años")
         # --- FIN DE LA MEJORA 1 ---
             
@@ -650,7 +657,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                 subplot_titles=selected_names,
                 vertical_spacing=0.08, shared_xaxes=True
             )
-            colors = ['#0066cc', '#dc3545', '#28a745', '#ffc107', '#17a2b8']
+            colors = ['#4F46E5', '#dc3545', '#28a745', '#ffc107', '#17a2b8'] # <--- ¡CAMBIO DE COLOR ACENTO!
             
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
                 if metric in df_filtrado.columns:
@@ -731,7 +738,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
             if selected_countries and selected_metric_bar:
                 st.markdown(f'<div class="section-title">{selected_name_bar}</div>', unsafe_allow_html=True)
                 comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)].sort_values(selected_metric_bar, ascending=False)
-                colors = {'Ecuador': '#0066cc', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'}
+                colors = {'Ecuador': '#4F46E5', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'} # <--- ¡CAMBIO DE COLOR ACENTO!
                 fig = go.Figure(data=[
                     go.Bar(
                         y=comp_data['location'], x=comp_data[selected_metric_bar], orientation='h',
@@ -777,7 +784,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                     table_data = comp_data.set_index('location')[existing_cols_table] 
                     
                     # --- ¡MEJORA! Reemplazar gradiente con barras ---
-                    st.dataframe(table_data.rename(columns=TRANSLATIONS).style.format("{:,.1f}", na_rep="N/A").bar(color='#0066cc', align='left', vmin=0), use_container_width=True)
+                    st.dataframe(table_data.rename(columns=TRANSLATIONS).style.format("{:,.1f}", na_rep="N/A").bar(color='#4F46E5', align='left', vmin=0), use_container_width=True) # <--- ¡CAMBIO DE COLOR ACENTO!
                     # --- FIN DE LA MEJORA --- 
 
                     st.markdown("---")
@@ -987,6 +994,7 @@ def render_tab_factores(df_latest, metrics_df):
                 x=selected_metric,
                 y="continent",
                 color="continent",
+                color_discrete_sequence=px.colors.qualitative.G10, # <--- ¡AÑADIDO!
                 title=f"Diagrama de Cajas por Continente",
                 template='plotly_white',
                 log_x=log_scale_box_active, # <--- Usar log_scale_box_active
@@ -1062,7 +1070,7 @@ def render_tab_factores(df_latest, metrics_df):
                     title=f"Factores con Mayor Correlación con '{selected_outcome_name}'",
                     template='plotly_white',
                     color='Tipo',
-                    color_discrete_map={'Positiva': '#0066cc', 'Negativa': '#dc3545'},
+                    color_discrete_map={'Positiva': '#4F46E5', 'Negativa': '#dc3545'}, # <--- ¡CAMBIO DE COLOR ACENTO!
                     text='Correlación'
                 )
                 fig_corr_bar.update_traces(texttemplate='%{text:.2f}', textposition='outside')
@@ -1128,7 +1136,9 @@ def render_tab_factores(df_latest, metrics_df):
                 fig_scatter = px.scatter(
                     plot_data,
                     x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
-                    color="continent", hover_name="location",   
+                    color="continent",
+                    color_discrete_sequence=px.colors.qualitative.Plotly, # <--- ¡AÑADIDO!
+                    hover_name="location",   
                     trendline="ols", template='plotly_white', height=600,
                     log_x=log_x_scatter, log_y=log_y_scatter,
                     hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
@@ -1245,12 +1255,12 @@ def main():
     with col1:
         total_cases = latest['total_cases'].sum() if 'total_cases' in latest.columns else np.nan
         new_cases = latest['new_cases'].sum() if 'new_cases' in latest.columns else np.nan
-        st.metric(label="Casos Totales", value=formatar_numero_grande(total_cases),
+        st.metric(label="😷 Casos Totales", value=formatar_numero_grande(total_cases), # <--- ¡EMOJI AÑADIDO!
                   delta=f"{new_cases:,.0f} (Nuevos)" if pd.notna(new_cases) and new_cases != 0 else None)
     with col2:
         total_deaths = latest['total_deaths'].sum() if 'total_deaths' in latest.columns else np.nan
         new_deaths = latest['new_deaths'].sum() if 'new_deaths' in latest.columns else np.nan
-        st.metric(label="Muertes Totales", value=formatar_numero_grande(total_deaths),
+        st.metric(label="💀 Muertes Totales", value=formatar_numero_grande(total_deaths), # <--- ¡EMOJI AÑADIDO!
                   delta=f"{new_deaths:,.0f} (Nuevas)" if pd.notna(new_deaths) and new_deaths != 0 else None, delta_color="inverse")
     with col3:
         pop_label = "Población Mundial"
@@ -1268,10 +1278,10 @@ def main():
             except Exception:
                 pop_label = "Población (Error)"
                 pop_help = "No se pudo calcular la población."
-        st.metric(label=pop_label, value=formatar_numero_grande(total_pop), help=pop_help)
+        st.metric(label=f"🌏 {pop_label}", value=formatar_numero_grande(total_pop), help=pop_help) # <--- ¡EMOJI AÑADIDO!
     with col4:
         unique_countries = latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
-        st.metric(label="Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).")
+        st.metric(label="🏳️ Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).") # <--- ¡EMOJI AÑADIDO!
     
     st.markdown("---") # Separador antes de las pestañas
     
