@@ -581,12 +581,18 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
 
 
     # --- Contenedor Principal de Resultados ---
-    if selected_metrics and selected_country and len(date_range) == 2:
-        
-        # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
+    if selected_metrics and selected_country:
+        # Normalizar date_range: st.date_input puede devolver una fecha simple o (start, end)
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start_date, end_date = date_range
+        else:
+            # tratar una fecha única como rango de un día
+            start_date = end_date = date_range
+         
+         # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
         with st.spinner(f"Cargando historial completo para {selected_country}... (esto es rápido si está en caché)"):
-            df_historia = get_full_history(selected_country)
-        
+             df_historia = get_full_history(selected_country)
+         
         if df_historia.empty:
             st.warning(f"No se pudieron cargar datos para {selected_country}.")
             st.stop()
