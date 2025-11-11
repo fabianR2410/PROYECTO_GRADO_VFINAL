@@ -664,7 +664,10 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                     country_data = df_filtrado.reset_index() # Plotly necesita 'date' como columna
                     color = colors[i % len(colors)]
                     
-                    if metric in CROSS_SECTIONAL_EXCLUDE_METRICS:
+                    # ==========================================================
+                    # --- ¡AQUÍ ESTÁ LA CORRECCIÓN! --- (Línea 733)
+                    # ==========================================================
+                    if metric in CROSS_SECTIONAL_EXCLUDE_METRICS and "_smoothed" not in metric:
                         metric_avg_7 = f"{metric}_avg_7"
                         country_data[metric_avg_7] = country_data[metric].rolling(window=7, center=True, min_periods=1).mean()
                         fill_color_rgba = f'rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.3)'
@@ -680,6 +683,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                             hovertemplate='<b>%{x|%Y-%m-%d}</b><br>' + f'Media 7 Días: %{{y:,.1f}}<extra></extra>'
                         ), row=i+1, col=1)
                     else: 
+                        # Esta lógica AHORA se aplica a 'new_cases_smoothed'
                         fig.add_trace(go.Scatter(
                             x=country_data['date'], y=country_data[metric], name=name,
                             line=dict(color=color, width=3), mode='lines',
