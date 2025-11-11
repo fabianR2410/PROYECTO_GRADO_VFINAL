@@ -599,18 +599,42 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         latest_data = df_historia.iloc[-1] 
         
         kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+        
+        # (KPI 1 y 2 están bien, usan formatar_numero_grande que ya maneja N/A)
         with kpi_col1:
             st.metric("👥 Población Total", # <--- ¡EMOJI AÑADIDO!
                       formatar_numero_grande(latest_data.get('population', 0)))
         with kpi_col2:
             st.metric("💰 PIB per Cápita", # <--- ¡EMOJI AÑADIDO!
                       f"${formatar_numero_grande(latest_data.get('gdp_per_capita', 0))}")
+        
+        # --- INICIO DE LA CORRECCIÓN ---
+        
+        # KPI 3: Edad Mediana (Corregido)
         with kpi_col3:
-            st.metric("🧍 Edad Mediana", # <--- ¡EMOJI AÑADIDO!
-                      f"{latest_data.get('median_age', 0):.1f} años")
+            valor_edad = latest_data.get('median_age')
+            if pd.isna(valor_edad):
+                texto_edad = "N/A"
+            else:
+                try:
+                    texto_edad = f"{float(valor_edad):.1f} años"
+                except (ValueError, TypeError):
+                    texto_edad = "N/A"
+            st.metric("🧍 Edad Mediana", texto_edad)
+
+        # KPI 4: Esperanza de Vida (Corregido)
         with kpi_col4:
-            st.metric("❤️ Esperanza de Vida", # <--- ¡EMOJI AÑADIDO!
-                      f"{latest_data.get('life_expectancy', 0):.1f} años")
+            valor_vida = latest_data.get('life_expectancy')
+            if pd.isna(valor_vida):
+                texto_vida = "N/A"
+            else:
+                try:
+                    texto_vida = f"{float(valor_vida):.1f} años"
+                except (ValueError, TypeError):
+                    texto_vida = "N/A"
+            st.metric("❤️ Esperanza de Vida", texto_vida)
+            
+        # --- FIN DE LA CORRECCIÓN ---
             
         # Filtrar el DataFrame local por fecha
         try:
