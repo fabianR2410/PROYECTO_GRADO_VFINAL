@@ -606,11 +606,11 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             st.metric("💰 PIB per Cápita", # <--- ¡EMOJI AÑADIDO!
                       f"${formatar_numero_grande(latest_data.get('gdp_per_capita', 0))}")
         with kpi_col3:
-           st.metric("🧍 Edad Mediana", # <--- ¡EMOJI AÑADIDO!
-          f"{formatar_numero_grande(latest_data.get('median_age'))} años")
-         st.metric("❤️ Esperanza de Vida", # <--- ¡EMOJI AÑADIDO!
-          f"{formatar_numero_grande(latest_data.get('life_expectancy'))} años")
-        # --- FIN DE LA MEJORA 1 ---
+            st.metric("🧍 Edad Mediana", # <--- ¡EMOJI AÑADIDO!
+                      f"{latest_data.get('median_age', 0):.1f} años")
+        with kpi_col4:
+            st.metric("❤️ Esperanza de Vida", # <--- ¡EMOJI AÑADIDO!
+                      f"{latest_data.get('life_expectancy', 0):.1f} años")
             
         # Filtrar el DataFrame local por fecha
         try:
