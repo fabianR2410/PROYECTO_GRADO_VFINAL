@@ -1197,7 +1197,7 @@ def render_tab_arquitectura():
         
         Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube.
         CON MUCHO CARIÑO GRUPO 6
-        INTEGRANTES:
+        -INTEGRANTES:
         - FABIAN REYES.
         - WORMAN ANDRADE.
         - CELSO AGUIRRE.
