@@ -544,7 +544,7 @@ def render_tab_global(df_latest, metrics_df):
                 st.info("Selecciona una métrica para mostrar el gráfico.")
 
 # --- FUNCIÓN Pestaña 2: Evolución por País ---
-def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df_latest): # <-- ¡MEJORA 2: df_latest AÑADIDO!
+def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
     """LÓGICA REFACTORIZADA PARA LA PESTAÑA 2: EVOLUCIÓN POR PAÍS"""
 
     # --- Filtros ---
@@ -578,37 +578,36 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df
             )
             use_log = st.checkbox("Usar escala logarítmica", key="log_evol")
             show_raw_data = st.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
-            
-            # --- INICIO DE MEJORA: PESTAÑA 2 ---
-            st.markdown("---") # Separador visual
-            compare_continent = st.checkbox("Comparar con el Continente", key="evol_comp_continent")
-            compare_world = st.checkbox("Comparar con el Mundo", key="evol_comp_world")
-            # --- FIN DE MEJORA: PESTAÑA 2 ---
 
 
+    # --- INICIO DE LA CORRECCIÓN ---
     # Validar que el rango esté completo ANTES de continuar
+    # Esto soluciona el error 'tuple index out of range'
     if not isinstance(date_range, (list, tuple)) or len(date_range) != 2:
         st.warning("Por favor, selecciona una fecha de inicio y una de fin en el 'Rango de Fechas'.")
         st.stop() # Detiene la ejecución de esta pestaña aquí
 
     # Si el código llega aquí, es seguro que date_range tiene 2 fechas
     start_date, end_date = date_range
+    # --- FIN DE LA CORRECCIÓN ---
 
 
-    # --- Contenedor Principal de Resultados ---
+    # --- Contenendor Principal de Resultados ---
     if selected_metrics and selected_country:
          
-        # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
-        with st.spinner(f"Cargando historial completo para {selected_country}..."):
+         # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
+        with st.spinner(f"Cargando historial completo para {selected_country}... (esto es rápido si está en caché)"):
              df_historia = get_full_history(selected_country)
          
         if df_historia.empty:
             st.warning(f"No se pudieron cargar datos para {selected_country}.")
             st.stop()
         
-        # --- Mostrar KPIs demográficos estáticos ---
+        # --- ¡MEJORA 1! ---
+        # Mostrar KPIs demográficos estáticos
         st.markdown(f'<div class="section-title">Contexto Demográfico ({selected_country})</div>', unsafe_allow_html=True)
         
+        # Obtener los datos de la primera fila disponible (son estáticos)
         latest_data = df_historia.iloc[-1] 
         
         kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
@@ -643,45 +642,12 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df
             st.metric("❤️ Esperanza de Vida", texto_vida)
             
             
-        # --- INICIO DE MEJORA: PESTAÑA 2 (Carga de datos de comparación) ---
-        df_continent = pd.DataFrame()
-        df_world = pd.DataFrame()
-        # --- ¡CORRECCIÓN! Inicializar las variables filtradas para evitar 'Possibly Unbound' ---
-        df_continent_filtrado = pd.DataFrame() 
-        df_world_filtrado = pd.DataFrame()   
-        
-        continent_name = None
-        if 'continent' in latest_data:
-            continent_name = latest_data.get('continent') # Obtener el nombre del continente
-
-        if compare_continent and continent_name and pd.notna(continent_name) and continent_name.lower() != selected_country.lower():
-            with st.spinner(f"Cargando historial para {continent_name}..."):
-                df_continent = get_full_history(continent_name) # API call
-        
-        if compare_world and "world" != selected_country.lower():
-            with st.spinner("Cargando historial para World..."):
-                df_world = get_full_history("World") # API call
-        # --- FIN DE MEJORA: PESTAÑA 2 ---
-
-            
         # Filtrar el DataFrame local por fecha
         try:
+            # --- INICIO DE LA CORRECCIÓN ---
+            # Usar las variables validadas start_date y end_date
             df_filtrado = df_historia.loc[start_date.strftime('%Y-%m-%d'):end_date.strftime('%Y-%m-%d')].copy()
-            
-            # --- INICIO DE MEJORA: PESTAÑA 2 (Filtrar datos de comparación) ---
-            if not df_continent.empty:
-                try:
-                    df_continent_filtrado = df_continent.loc[start_date.strftime('%Y-%m-%d'):end_date.strftime('%Y-%m-%d')].copy()
-                except Exception:
-                    pass # Falla silenciosamente si el rango no coincide
-
-            if not df_world.empty:
-                try:
-                    df_world_filtrado = df_world.loc[start_date.strftime('%Y-%m-%d'):end_date.strftime('%Y-%m-%d')].copy()
-                except Exception:
-                    pass
-            # --- FIN DE MEJORA: PESTAÑA 2 ---
-            
+            # --- FIN DE LA CORRECCIÓN ---
         except Exception as e:
             st.error(f"Error al filtrar fechas: {e}")
             df_filtrado = pd.DataFrame()
@@ -694,7 +660,10 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df
             st.markdown(f'<h4>Resultados para {selected_country}</h4>', unsafe_allow_html=True)
             
             # --- KPIs de Resumen ---
+            # --- INICIO DE LA CORRECCIÓN ---
+            # Usar las variables validadas start_date y end_date
             st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({start_date.strftime("%Y-%m-%d")} al {end_date.strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True)
+            # --- FIN DE LA CORRECCIÓN ---
             
             kpi_cols = st.columns(len(selected_metrics))
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
@@ -751,26 +720,6 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df
                             line=dict(color=color, width=3), mode='lines',
                             hovertemplate='<b>%{x|%Y-%m-%d}</b><br>' + f'{name}: %{{y:,.0f}}<extra></extra>'
                         ), row=i+1, col=1)
-                        
-                    
-                    # --- INICIO DE MEJORA: PESTAÑA 2 (Añadir trazos de comparación) ---
-                    if not df_continent_filtrado.empty and metric in df_continent_filtrado.columns:
-                        comp_data = df_continent_filtrado.reset_index()
-                        fig.add_trace(go.Scatter(
-                            x=comp_data['date'], y=comp_data[metric], name=f"{continent_name} (Referencia)",
-                            line=dict(color='gray', width=2, dash='dot'), # Línea gris punteada
-                            hovertemplate='<b>%{x|%Y-%m-%d}</b><br>' + f'{continent_name}: %{{y:,.1f}}<extra></extra>'
-                        ), row=i+1, col=1)
-
-                    if not df_world_filtrado.empty and metric in df_world_filtrado.columns:
-                        comp_data = df_world_filtrado.reset_index()
-                        fig.add_trace(go.Scatter(
-                            x=comp_data['date'], y=comp_data[metric], name="World (Referencia)",
-                            line=dict(color='black', width=2, dash='dash'), # Línea negra discontinua
-                            hovertemplate='<b>%{x|%Y-%m-%d}</b><br>' + f'World: %{{y:,.1f}}<extra></extra>'
-                        ), row=i+1, col=1)
-                    # --- FIN DE MEJORA: PESTAÑA 2 ---
-                        
                         
                     if use_log:
                         fig.update_yaxes(type="log", row=i+1, col=1)
@@ -960,11 +909,7 @@ def render_tab_factores(df_latest, metrics_df):
         data_df = pd.DataFrame() 
         values = pd.Series(dtype=float)
         if selected_metric and selected_metric in data_to_analyze.columns:
-            # --- INICIO DE MEJORA: PESTAÑA 4 ---
-            # Asegurarse de que 'population' esté en los datos para el gráfico de burbujas
-            cols_to_get = ['location', 'continent', 'population', selected_metric]
-            data_df = data_to_analyze[[col for col in cols_to_get if col in data_to_analyze.columns]].dropna(subset=[selected_metric])
-            # --- FIN DE MEJORA: PESTAÑA 4 ---
+            data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
             
             if not include_outliers:
                 if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
@@ -1153,11 +1098,7 @@ def render_tab_factores(df_latest, metrics_df):
         
         if selected_x and selected_y:
             
-            # --- INICIO DE MEJORA: PESTAÑA 4 ---
-            # Asegurarse de que 'population' no sea nulo para el gráfico de burbujas
-            plot_data = latest_countries_only.dropna(subset=[selected_x, selected_y, 'population']) 
-            # --- FIN DE MEJORA: PESTAÑA 4 ---
-
+            plot_data = latest_countries_only.dropna(subset=[selected_x, selected_y])
             if not include_outliers:
                  if pd.api.types.is_numeric_dtype(plot_data[selected_x]) and len(plot_data) > 1:
                     Q1_x = plot_data[selected_x].quantile(0.25)
@@ -1186,7 +1127,6 @@ def render_tab_factores(df_latest, metrics_df):
             if plot_data.empty:
                 st.warning("No hay datos para mostrar después de aplicar los filtros.")
             else:
-                # --- INICIO DE MEJORA: PESTAÑA 4 ---
                 fig_scatter = px.scatter(
                     plot_data,
                     x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
@@ -1195,18 +1135,8 @@ def render_tab_factores(df_latest, metrics_df):
                     hover_name="location",   
                     trendline="ols", template='plotly_white', height=600,
                     log_x=log_x_scatter, log_y=log_y_scatter,
-                    
-                    size='population', # <-- ¡MEJORA AÑADIDA!
-                    size_max=60,       # <-- ¡MEJORA AÑADIDA!
-                    
-                    hover_data={
-                        selected_x:':,.1f', 
-                        selected_y:':,.1f', 
-                        'continent':False,
-                        'population':',.0f' # <-- ¡MEJORA AÑADIDA!
-                    }
+                    hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
                 )
-                # --- FIN DE MEJORA: PESTAÑA 4 ---
                 st.plotly_chart(fig_scatter, use_container_width=True) 
 
 
@@ -1215,12 +1145,6 @@ def render_tab_arquitectura():
     """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL SISTEMA"""
     st.markdown('<div class="section-title">🏗️ Sobre este Proyecto</div>', unsafe_allow_html=True)
     
-    with st.container(border=False):
-        st.markdown("### Diagrama de la Arquitectura del Sistema")
-        try:
-            st.image("arquitectura.png", caption="Diagrama de flujo de la arquitectura desacoplada (Frontend/Backend)")
-        except Exception:
-            st.warning("No se pudo cargar el diagrama de arquitectura (asegúrate de que 'arquitectura.png' esté en la carpeta).")
 
     with st.container(border=False):
         st.markdown("### Resumen del Proyecto")
@@ -1265,6 +1189,7 @@ def render_tab_arquitectura():
     
     st.markdown("---")
 
+   
     st.markdown('<div class="section-title">🛠️ Tecnologías Utilizadas</div>', unsafe_allow_html=True)
     
     col1_tech, col2_tech, col3_tech = st.columns(3)
@@ -1290,11 +1215,14 @@ def render_tab_arquitectura():
         * Streamlit Cloud (Host del Dashboard)
         * Git / GitHub
         """)
+    
 
     st.markdown("---")
 
     with st.container(border=False):
+        
         st.markdown('<div class="section-title">🏆 Equipo de Desarrollo</div>', unsafe_allow_html=True)
+        
         
         st.markdown("""
         
@@ -1400,7 +1328,7 @@ def main():
     with tab_global:
         render_tab_global(df_latest, metrics_df) 
     with tab_pais:
-        render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date, df_latest) # <-- ¡MEJORA 2: df_latest PASADO!
+        render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
         render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date) 
     with tab_factores:
@@ -1413,7 +1341,7 @@ def main():
     unique_countries_count = df_latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
     st.markdown(f"""
         <div style='text-align: center; color: #6c757d; padding: 20px;'>
-            <p><strong>Fuente de Datos:</strong> DASHBOARD COVID-19  |
+            <p><strong>Fuente de Datos:</strong> DASHBOARD COVID-19 (vía Our World in Data) |
             <strong>Última Actualización:</strong> {data_max_date.strftime('%Y-%m-%d')} |
             <strong>Países/Regiones:</strong> {unique_countries_count:,}</p>
         </div>
