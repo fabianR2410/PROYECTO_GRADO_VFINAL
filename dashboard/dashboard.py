@@ -906,7 +906,7 @@ def render_tab_factores(df_latest, metrics_df):
                 st.markdown("<br>", unsafe_allow_html=True) 
                 include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
                 # --- Escala Logarítmica ---
-                use_log_scale = st.checkbox("Escala Logarítmica", value=True, key="stats_log", help="Recomendado para datos muy sesgados.")
+                use_log_scale = st.checkbox("Escala Logarítmica", value=False, key="stats_log", help="Filtra valores 0 o negativos. Recomendado para datos muy sesgados.")
 
         # --- ¡INICIO DE LA MEJORA DE COMPRENSIÓN! ---
 
