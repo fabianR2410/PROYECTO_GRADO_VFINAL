@@ -31,7 +31,7 @@ class CovidDataCleaner:
     # ==========================================================
     # MÉTODO PRINCIPAL
     # ==========================================================
-    def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def clean_data(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
         """
         Aplica todo el proceso de limpieza de datos.
 
@@ -70,7 +70,7 @@ class CovidDataCleaner:
     # ==========================================================
     # MÉTODOS INDIVIDUALES
     # ==========================================================
-    def remove_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
+    def remove_duplicates(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
         """Elimina filas duplicadas."""
         initial_rows = len(df)
 
@@ -86,7 +86,7 @@ class CovidDataCleaner:
 
         return df_clean
 
-    def handle_missing_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+    def handle_missing_columns(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
         """Elimina columnas con exceso de valores faltantes."""
         missing_pct = df.isnull().sum() / len(df)
 
@@ -109,7 +109,7 @@ class CovidDataCleaner:
 
         return df_clean
 
-    def clean_dates(self, df: pd.DataFrame) -> pd.DataFrame:
+    def clean_dates(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
         """Limpia y valida columna de fechas."""
         if 'date' not in df.columns:
             logger.warning("⚠️ No 'date' column found.")
@@ -145,7 +145,7 @@ class CovidDataCleaner:
             
         return df_clean
 
-    def clean_numeric_values(self, df: pd.DataFrame) -> pd.DataFrame:
+    def clean_numeric_values(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
         """Limpia valores numéricos (negativos, infinitos, etc)."""
         df_clean = df.copy()
         numeric_cols = df_clean.select_dtypes(include=[np.number]).columns
@@ -165,10 +165,10 @@ class CovidDataCleaner:
 
     def handle_outliers(
         self,
-        df: pd.DataFrame,
+        df: 'pd.DataFrame',
         method: str = 'iqr',
         factor: float = 3.0
-    ) -> pd.DataFrame:
+    ) -> 'pd.DataFrame':
         """
         Maneja valores atípicos en columnas numéricas (usando "capping").
         """
@@ -195,43 +195,80 @@ class CovidDataCleaner:
                 continue
 
             if method == 'iqr':
-                Q1 = df_clean[col].quantile(0.25)
-                Q3 = df_clean[col].quantile(0.75)
+                # --- Lógica de IQR (ya estaba correcta) ---
+                if 'location' in df_clean.columns:
+                    Q1 = df_clean.groupby('location')[col].transform('quantile', 0.25)
+                    Q3 = df_clean.groupby('location')[col].transform('quantile', 0.75)
+                else:
+                    Q1 = df_clean[col].quantile(0.25)
+                    Q3 = df_clean[col].quantile(0.75)
+
                 IQR = Q3 - Q1
                 
-                # Omitir si IQR es 0 (datos constantes)
-                if IQR == 0:
-                    continue
-                    
-                lower_bound = Q1 - factor * IQR
-                upper_bound = Q3 + factor * IQR
+                lower_bound = Q1 - (factor * IQR)
+                upper_bound = Q3 + (factor * IQR)
+                
                 outliers_lower = (df_clean[col] < lower_bound)
                 outliers_upper = (df_clean[col] > upper_bound)
                 
                 outlier_count = outliers_lower.sum() + outliers_upper.sum()
                 
                 if outlier_count > 0:
-                    # --- ✅ SOLUCIÓN PROFESIONAL (CAPPING) ---
-                    # No los borres (np.nan), "acótalos" al límite
                     df_clean.loc[outliers_lower, col] = lower_bound
                     df_clean.loc[outliers_upper, col] = upper_bound
-                    # --- FIN DE LA SOLUCIÓN ---
                     outliers_total += outlier_count
 
             elif method == 'zscore':
-                mean = df_clean[col].mean()
-                std = df_clean[col].std()
-                if std > 0:
-                    z_scores = (df_clean[col] - mean) / std
-                    outliers_lower = (z_scores < -factor)
-                    outliers_upper = (z_scores > factor)
+                # --- INICIO DE LA CORRECCIÓN DE TIPO (Z-SCORE) ---
+                
+                z_scores = pd.Series(0.0, index=df_clean.index) # Inicializar
+                lower_bound_z = pd.Series(0.0, index=df_clean.index)
+                upper_bound_z = pd.Series(0.0, index=df_clean.index)
+
+                if 'location' in df_clean.columns:
+                    # Caso 1: 'std' es una Serie
+                    mean = df_clean.groupby('location')[col].transform('mean')
+                    std_series = df_clean.groupby('location')[col].transform('std')
                     
-                    outlier_count = outliers_lower.sum() + outliers_upper.sum()
-                    if outlier_count > 0:
-                         # --- ✅ SOLUCIÓN PROFESIONAL (CAPPING) ---
-                        df_clean.loc[outliers_lower, col] = mean - factor * std
-                        df_clean.loc[outliers_upper, col] = mean + factor * std
-                        outliers_total += outlier_count
+                    # Aplicar .replace() a la Serie
+                    std_series = std_series.replace(0, np.nan) 
+                    
+                    z_scores = (df_clean[col] - mean) / std_series
+                    
+                    # Límites (Series)
+                    lower_bound_z = mean - factor * std_series
+                    upper_bound_z = mean + factor * std_series
+
+                else:
+                    # Caso 2: 'std' es un float
+                    mean = df_clean[col].mean()
+                    std_float = df_clean[col].std()
+                    
+                    if std_float == 0 or pd.isna(std_float):
+                        # z_scores se queda en 0 (como se inicializó)
+                        pass
+                    else:
+                        z_scores = (df_clean[col] - mean) / std_float
+                    
+                    # Límites (Floats)
+                    lower_bound_z = mean - factor * (std_float if pd.notna(std_float) else 0)
+                    upper_bound_z = mean + factor * (std_float if pd.notna(std_float) else 0)
+
+                # Reemplazar NaNs (de std=0 o std=nan) por 0, ya que no son outliers
+                z_scores = z_scores.fillna(0) 
+
+                outliers_lower = (z_scores < -factor)
+                outliers_upper = (z_scores > factor)
+                
+                outlier_count = outliers_lower.sum() + outliers_upper.sum()
+                
+                if outlier_count > 0:
+                    # Aplicar "capping" (tope)
+                    # .loc funciona bien si el límite es un float o una Serie alineada
+                    df_clean.loc[outliers_lower, col] = lower_bound_z
+                    df_clean.loc[outliers_upper, col] = upper_bound_z
+                    outliers_total += outlier_count
+                # --- FIN DE LA CORRECCIÓN DE TIPO ---
                 else:
                     continue
             else:
@@ -256,3 +293,5 @@ class CovidDataCleaner:
             'dropped_column_names': self.columns_dropped,
             'outliers_handled': self.outliers_handled,
         }
+# --- ARCHIVO TERMINA AQUÍ ---
+# (Asegúrate de que no haya nada en la línea 280, ni siquiera un '}')
