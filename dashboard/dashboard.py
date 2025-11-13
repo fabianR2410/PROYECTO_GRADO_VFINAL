@@ -376,8 +376,10 @@ def check_api_status():
         return False
 
 # --- FUNCIÓN DE CARGA CON CACHÉ TTL  ---
-@st.cache_data(ttl=120)  # caché por 2 minutos
+# <--- INICIO DE LA CORRECCIÓN: Aumentar TTL de caché ---
+@st.cache_data(ttl=3600)  # caché por 1 hora (era 120 segundos)
 def load_dashboard_data():
+# <--- FIN DE LA CORRECCIÓN ---
     """
     Carga los datos iniciales (latest, countries, metrics) desde la API.
     Se usa un caché de 2 minutos y un timeout largo para el "cold start" de Render.
@@ -408,8 +410,10 @@ def load_dashboard_data():
         return None, None, None
 
 # --- ¡FUNCIÓN! (Para Pestaña 2) ---
-@st.cache_data(ttl=600) # Caché por 10 minutos
+# <--- INICIO DE LA CORRECCIÓN: Aumentar TTL de caché ---
+@st.cache_data(ttl=1800) # Caché por 30 minutos (era 600 segundos)
 def get_full_history(country):
+# <--- FIN DE LA CORRECCIÓN ---
     """
     Obtiene TODOS los datos históricos para UN país desde el nuevo endpoint.
     Se llama desde la Pestaña 2 (Evolución).
