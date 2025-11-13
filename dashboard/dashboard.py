@@ -584,21 +584,15 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             show_raw_data = st.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
 
 
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Validar que el rango esté completo ANTES de continuar
-    # Esto soluciona el error 'tuple index out of range'
-    if not isinstance(date_range, (list, tuple)) or len(date_range) != 2:
-        st.warning("Por favor, selecciona una fecha de inicio y una de fin en el 'Rango de Fechas'.")
-        st.stop() # Detiene la ejecución de esta pestaña aquí
-
-    # Si el código llega aquí, es seguro que date_range tiene 2 fechas
-    start_date, end_date = date_range
-    # --- FIN DE LA CORRECCIÓN ---
-
-
     # --- Contenedor Principal de Resultados ---
     if selected_metrics and selected_country:
-        
+        # Normalizar date_range: st.date_input puede devolver una fecha simple o (start, end)
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start_date, end_date = date_range
+        else:
+            # tratar una fecha única como rango de un día
+            start_date = end_date = date_range
+         
          # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
         with st.spinner(f"Cargando historial completo para {selected_country}... (esto es rápido si está en caché)"):
              df_historia = get_full_history(selected_country)
@@ -654,10 +648,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             
         # Filtrar el DataFrame local por fecha
         try:
-            # --- INICIO DE LA CORRECCIÓN ---
-            # Usar las variables validadas start_date y end_date
-            df_filtrado = df_historia.loc[start_date.strftime('%Y-%m-%d'):end_date.strftime('%Y-%m-%d')].copy()
-            # --- FIN DE LA CORRECCIÓN ---
+            df_filtrado = df_historia.loc[date_range[0].strftime('%Y-%m-%d'):date_range[1].strftime('%Y-%m-%d')].copy() # type: ignore
         except Exception as e:
             st.error(f"Error al filtrar fechas: {e}")
             df_filtrado = pd.DataFrame()
@@ -670,10 +661,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             st.markdown(f'<h4>Resultados para {selected_country}</h4>', unsafe_allow_html=True)
             
             # --- KPIs de Resumen ---
-            # --- INICIO DE LA CORRECCIÓN ---
-            # Usar las variables validadas start_date y end_date
-            st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({start_date.strftime("%Y-%m-%d")} al {end_date.strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True)
-            # --- FIN DE LA CORRECCIÓN ---
+            st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({date_range[0].strftime("%Y-%m-%d")} al {date_range[1].strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True) # type: ignore
             
             kpi_cols = st.columns(len(selected_metrics))
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
