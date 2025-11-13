@@ -17,6 +17,7 @@ import numpy as np
 from pathlib import Path
 import logging
 from datetime import datetime
+import threading # <--- CORRECCIÓN 1: Importar threading
 
 # --- IMPORTACIONES DEL ETL (CORREGIDAS PARA RENDER) ---
 from scripts.data_loader import CovidDataLoader
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 # --- Almacenamiento de datos en memoria ---
 covid_data: Optional[pd.DataFrame] = None
+etl_lock = threading.Lock() # <--- CORRECCIÓN 2: Añadir un Lock (cerrojo)
 
 # --- LÓGICA DE CARGA MODIFICADA ---
 def load_data_and_run_etl() -> pd.DataFrame:
@@ -120,16 +122,22 @@ def get_data() -> pd.DataFrame:
     Dependencia de FastAPI para obtener el DataFrame.
     """
     global covid_data
+    # <--- INICIO DE LA CORRECCIÓN 3: Prevenir "Race Condition" (Condición de Carrera) ---
     if covid_data is None:
-        logger.warning("Intentando acceder a datos (covid_data is None), intentando recargar ETL...")
-        try:
-            load_data_and_run_etl()
-            if covid_data is None: # Si falló
-                 raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible: Error al recargar ETL.")
-            logger.info("Recarga de ETL completada exitosamente dentro de get_data.")
-        except Exception as e:
-            logger.error(f"Fallo crítico en la recarga de ETL dentro de get_data: {e}")
-            raise HTTPException(status_code=503, detail=f"Servicio no disponible: Error crítico al recargar ETL - {e}")
+        # Solo un hilo puede intentar recargar los datos a la vez
+        with etl_lock:
+            # Volver a comprobar, por si otro hilo lo cargó mientras este esperaba
+            if covid_data is None: 
+                logger.warning("Intentando acceder a datos (covid_data is None), recargando ETL...")
+                try:
+                    load_data_and_run_etl() # <-- Solo un hilo puede ejecutar esto
+                    if covid_data is None: # Si falló de nuevo
+                         raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible: Error al recargar ETL.")
+                    logger.info("Recarga de ETL completada exitosamente dentro de get_data.")
+                except Exception as e:
+                    logger.error(f"Fallo crítico en la recarga de ETL dentro de get_data: {e}")
+                    raise HTTPException(status_code=503, detail=f"Servicio no disponible: Error crítico al recargar ETL - {e}")
+    # <--- FIN DE LA CORRECCIÓN 3 ---
     return covid_data
 
 # --- Endpoint de Recarga ---
@@ -140,7 +148,9 @@ async def trigger_reload_data():
     """
     logger.info("Recarga de ETL solicitada vía endpoint POST /admin/reload-data...")
     try:
-        load_data_and_run_etl()
+        # Usamos el lock aquí también para ser seguros
+        with etl_lock:
+            load_data_and_run_etl()
         logger.info("Datos recargados (ETL) exitosamente vía endpoint.")
         return {"message": "Data ETL reload successful"}
     except Exception as e:
