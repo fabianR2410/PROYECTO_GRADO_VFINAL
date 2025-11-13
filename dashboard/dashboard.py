@@ -1219,7 +1219,7 @@ def render_tab_arquitectura():
             * **Optimización:** Se aplicaron varias técnicas para asegurar una experiencia de usuario fluida:
                 1.  **`st.cache_data`**: Las llamadas a la API se guardan en caché para evitar recargas innecesarias.
                 2.  **Manejo de "Cold Start"**: Se implementó un `timeout` de 45 segundos, ya que la API en Render (plan gratuito) se "duerme" y necesita tiempo para despertar.
-                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica, mejorando drástiC.
+                3.  **Refactor de Endpoints**: La pestaña "Análisis por País" se optimizó para hacer una sola llamada (`/country-history`) en lugar de una por métrica.
             """)
             st.link_button("Ver el Repositorio en GitHub", "https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL")
     
