@@ -376,10 +376,8 @@ def check_api_status():
         return False
 
 # --- FUNCIÓN DE CARGA CON CACHÉ TTL  ---
-# <--- INICIO DE LA CORRECCIÓN: Aumentar TTL de caché ---
-@st.cache_data(ttl=3600)  # caché por 1 hora (era 120 segundos)
+@st.cache_data(ttl=3600)  # caché por 1 hora
 def load_dashboard_data():
-# <--- FIN DE LA CORRECCIÓN ---
     """
     Carga los datos iniciales (latest, countries, metrics) desde la API.
     Se usa un caché de 2 minutos y un timeout largo para el "cold start" de Render.
@@ -410,10 +408,8 @@ def load_dashboard_data():
         return None, None, None
 
 # --- ¡FUNCIÓN! (Para Pestaña 2) ---
-# <--- INICIO DE LA CORRECCIÓN: Aumentar TTL de caché ---
-@st.cache_data(ttl=1800) # Caché por 30 minutos (era 600 segundos)
+@st.cache_data(ttl=1800) # Caché por 30 minutos
 def get_full_history(country):
-# <--- FIN DE LA CORRECCIÓN ---
     """
     Obtiene TODOS los datos históricos para UN país desde el nuevo endpoint.
     Se llama desde la Pestaña 2 (Evolución).
@@ -584,14 +580,20 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             show_raw_data = st.checkbox("Mostrar datos crudos (barras)", value=True, key="raw_evol")
 
 
-    # --- Contenedor Principal de Resultados ---
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Validar que el rango esté completo ANTES de continuar
+    # Esto soluciona el error 'tuple index out of range'
+    if not isinstance(date_range, (list, tuple)) or len(date_range) != 2:
+        st.warning("Por favor, selecciona una fecha de inicio y una de fin en el 'Rango de Fechas'.")
+        st.stop() # Detiene la ejecución de esta pestaña aquí
+
+    # Si el código llega aquí, es seguro que date_range tiene 2 fechas
+    start_date, end_date = date_range
+    # --- FIN DE LA CORRECCIÓN ---
+
+
+    # --- Contenendor Principal de Resultados ---
     if selected_metrics and selected_country:
-        # Normalizar date_range: st.date_input puede devolver una fecha simple o (start, end)
-        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-            start_date, end_date = date_range
-        else:
-            # tratar una fecha única como rango de un día
-            start_date = end_date = date_range
          
          # --- ¡REFACTOR! Carga de Datos (UNA SOLA LLAMADA A LA API) ---
         with st.spinner(f"Cargando historial completo para {selected_country}... (esto es rápido si está en caché)"):
@@ -610,17 +612,13 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         
         kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
         
-        # (KPI 1 y 2 están bien, usan formatar_numero_grande que ya maneja N/A)
         with kpi_col1:
-            st.metric("👥 Población Total", # <--- ¡EMOJI AÑADIDO!
+            st.metric("👥 Población Total",
                       formatar_numero_grande(latest_data.get('population', 0)))
         with kpi_col2:
-            st.metric("💰 PIB per Cápita", # <--- ¡EMOJI AÑADIDO!
+            st.metric("💰 PIB per Cápita",
                       f"${formatar_numero_grande(latest_data.get('gdp_per_capita', 0))}")
         
-        # --- INICIO DE LA CORRECCIÓN ---
-        
-        # KPI 3: Edad Mediana (Corregido)
         with kpi_col3:
             valor_edad = latest_data.get('median_age')
             if pd.isna(valor_edad):
@@ -632,7 +630,6 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                     texto_edad = "N/A"
             st.metric("🧍 Edad Mediana", texto_edad)
 
-        # KPI 4: Esperanza de Vida (Corregido)
         with kpi_col4:
             valor_vida = latest_data.get('life_expectancy')
             if pd.isna(valor_vida):
@@ -644,11 +641,13 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                     texto_vida = "N/A"
             st.metric("❤️ Esperanza de Vida", texto_vida)
             
-        # --- FIN DE LA CORRECCIÓN ---
             
         # Filtrar el DataFrame local por fecha
         try:
-            df_filtrado = df_historia.loc[date_range[0].strftime('%Y-%m-%d'):date_range[1].strftime('%Y-%m-%d')].copy() # type: ignore
+            # --- INICIO DE LA CORRECCIÓN ---
+            # Usar las variables validadas start_date y end_date
+            df_filtrado = df_historia.loc[start_date.strftime('%Y-%m-%d'):end_date.strftime('%Y-%m-%d')].copy()
+            # --- FIN DE LA CORRECCIÓN ---
         except Exception as e:
             st.error(f"Error al filtrar fechas: {e}")
             df_filtrado = pd.DataFrame()
@@ -661,7 +660,10 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
             st.markdown(f'<h4>Resultados para {selected_country}</h4>', unsafe_allow_html=True)
             
             # --- KPIs de Resumen ---
-            st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({date_range[0].strftime("%Y-%m-%d")} al {date_range[1].strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True) # type: ignore
+            # --- INICIO DE LA CORRECCIÓN ---
+            # Usar las variables validadas start_date y end_date
+            st.markdown(f'<div class="section-title" style="margin-top: 20px;">🗓️ Resumen del Período ({start_date.strftime("%Y-%m-%d")} al {end_date.strftime("%Y-%m-%d")})</div>', unsafe_allow_html=True)
+            # --- FIN DE LA CORRECCIÓN ---
             
             kpi_cols = st.columns(len(selected_metrics))
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
@@ -690,7 +692,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
                 subplot_titles=selected_names,
                 vertical_spacing=0.08, shared_xaxes=True
             )
-            colors = ['#4F46E5', '#dc3545', '#28a745', '#ffc107', '#17a2b8'] # <--- ¡CAMBIO DE COLOR ACENTO!
+            colors = ['#4F46E5', '#dc3545', '#28a745', '#ffc107', '#17a2b8'] 
             
             for i, (metric, name) in enumerate(zip(selected_metrics, selected_names)):
                 if metric in df_filtrado.columns:
@@ -736,7 +738,7 @@ def render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date):
         st.info("Selecciona al menos una métrica para graficar.")
 
 # --- FUNCIÓN Pestaña 3: Comparaciones  ---
-def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date): # <- AÑADIDO RANGO DE FECHAS
+def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
     """LÓGICA PARA LA PESTAÑA 3: COMPARACIONES (PAÍSES)"""
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
@@ -771,7 +773,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
             if selected_countries and selected_metric_bar:
                 st.markdown(f'<div class="section-title">{selected_name_bar}</div>', unsafe_allow_html=True)
                 comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)].sort_values(selected_metric_bar, ascending=False)
-                colors = {'Ecuador': '#4F46E5', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'} # <--- ¡CAMBIO DE COLOR ACENTO!
+                colors = {'Ecuador': '#4F46E5', 'Peru': '#dc3545', 'Colombia': '#28a745', 'Brazil': '#ffc107', 'Argentina': '#17a2b8'} 
                 fig = go.Figure(data=[
                     go.Bar(
                         y=comp_data['location'], x=comp_data[selected_metric_bar], orientation='h',
@@ -808,7 +810,6 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
             if selected_countries and selected_metrics_table:
                 st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
                 
-                # ---Tabla Comparativa ---
                 existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
                 if not existing_cols_table:
                     st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
@@ -816,9 +817,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                     comp_data = latest_countries_only[latest_countries_only['location'].isin(selected_countries)]
                     table_data = comp_data.set_index('location')[existing_cols_table] 
                     
-                    # --- ¡MEJORA! Reemplazar gradiente con barras ---
-                    st.dataframe(table_data.rename(columns=TRANSLATIONS).style.format("{:,.1f}", na_rep="N/A").bar(color='#4F46E5', align='left', vmin=0), use_container_width=True) # <--- ¡CAMBIO DE COLOR ACENTO!
-                    # --- FIN DE LA MEJORA --- 
+                    st.dataframe(table_data.rename(columns=TRANSLATIONS).style.format("{:,.1f}", na_rep="N/A").bar(color='#4F46E5', align='left', vmin=0), use_container_width=True) 
 
                     st.markdown("---")
                     st.markdown(f'<div class="section-title">🔥 Heatmap (Normalizado)</div>', unsafe_allow_html=True)
@@ -827,7 +826,6 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                     df_to_norm = comp_data.set_index('location')[existing_cols_table].dropna() 
                     
                     if not df_to_norm.empty:
-                        
                         
                         df_norm_smart = df_to_norm.copy()
                         for metric in df_norm_smart.columns:
@@ -841,29 +839,24 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                                 continue
 
                             if metric in METRICS_HIGHER_IS_BETTER:
-                                # Normal: 1 es el más alto
                                 df_norm_smart[metric] = (col_data - min_val) / range_val
                             elif metric in METRICS_LOWER_IS_BETTER:
-                                # Invertida: 1 es el más bajo
                                 df_norm_smart[metric] = 1 - ((col_data - min_val) / range_val)
                             else:
-                                # Por defecto, asumir que más bajo es mejor (ej. casos, muertes)
                                 df_norm_smart[metric] = 1 - ((col_data - min_val) / range_val)
 
-                        # Traducir columnas DESPUÉS de normalizar
                         df_norm_smart.columns = [translate_column(c) for c in df_norm_smart.columns]
                         
                         fig_heat = px.imshow(
                             df_norm_smart.T, 
                             text_auto=True,
                             aspect="auto",
-                            color_continuous_scale='RdYlGn', # Rojo (0) a Verde (1)
+                            color_continuous_scale='RdYlGn', 
                             title="Comparación Normalizada (0=Peor, 1=Mejor)"
                         )
                         fig_heat.update_traces(texttemplate="%{z:.2f}") 
                         fig_heat.update_layout(height=max(400, len(existing_cols_table) * 70))
                         st.plotly_chart(fig_heat, use_container_width=True)
-                        # --- FIN DE LA MEJORA: HEATMAP INTELIGENTE! ---
                         
                     else:
                         st.warning("No hay datos suficientes para generar el heatmap (verifique valores nulos).")
@@ -882,11 +875,9 @@ def render_tab_factores(df_latest, metrics_df):
     latest = df_latest
     latest_countries_only = latest[~latest['location'].str.lower().isin(AGGREGATES)] if 'location' in latest.columns else latest
     
-    # --- (Pestaña 4: Estadísticas) ---
     with st.container(border=False): 
         st.markdown('<div class="section-title">📊 Estadísticas (Global)</div>', unsafe_allow_html=True)
         
-        # --- Filtros ---
         with st.container(border=False):
             col1, col2, col3 = st.columns([2, 3, 1])
             with col1:
@@ -902,12 +893,8 @@ def render_tab_factores(df_latest, metrics_df):
             with col3:
                 st.markdown("<br>", unsafe_allow_html=True) 
                 include_outliers = st.checkbox("Incluir outliers", value=False, key="stats_outliers")
-                # --- Escala Logarítmica ---
                 use_log_scale = st.checkbox("Escala Logarítmica", value=False, key="stats_log", help="Filtra valores 0 o negativos. Recomendado para datos muy sesgados.")
 
-        # --- ¡INICIO DE LA MEJORA DE COMPRENSIÓN! ---
-
-        # 1. Añadir definición
         if selected_metric:
             st.info(f"**Definición:** {DEFINITIONS.get(selected_metric, 'No hay definición disponible para esta métrica.')}", icon="ℹ️")
 
@@ -924,7 +911,6 @@ def render_tab_factores(df_latest, metrics_df):
         if selected_metric and selected_metric in data_to_analyze.columns:
             data_df = data_to_analyze[['location', 'continent', selected_metric]].dropna(subset=[selected_metric])
             
-            # Aplicar filtro de outliers (local de la pestaña)
             if not include_outliers:
                 if pd.api.types.is_numeric_dtype(data_df[selected_metric]) and len(data_df) > 1:
                     Q1_filter = data_df[selected_metric].quantile(0.25)
@@ -937,14 +923,12 @@ def render_tab_factores(df_latest, metrics_df):
             if not data_df.empty:
                 values = data_df[selected_metric]
         
-        # 2. Reestructurar layout
-        main_col1, main_col2 = st.columns([1, 2]) # 1 parte para texto, 2 para gráfico
+        main_col1, main_col2 = st.columns([1, 2]) 
         
         with main_col1:
             st.markdown(f'<div class="section-title">Estadísticas Descriptivas {title_suffix}</div>', unsafe_allow_html=True)
             if pd.api.types.is_numeric_dtype(values) and not values.empty:
                 
-                # KPIs
                 row1_col1, row1_col2 = st.columns(2)
                 with row1_col1:
                     st.metric("Media", formatar_numero_grande(values.mean()))
@@ -957,16 +941,13 @@ def render_tab_factores(df_latest, metrics_df):
                 with row2_col2:
                     st.metric("N (Países)", f"{len(values)}")
                 
-                # 3. Añadir Insight
                 st.markdown("---")
                 st.markdown("##### Análisis Rápido")
                 Q1 = values.quantile(0.25)
                 Q3 = values.quantile(0.75)
                 median = values.median()
                 
-                # --- ¡INICIO DE LA CORRECCIÓN! (Línea 991) ---
                 unit = "%" if selected_name and "%" in selected_name else ""
-                # --- FIN DE LA CORRECCIÓN ---
                 
                 st.info(f"""
                 * **Mediana:** El valor central es **{formatar_numero_grande(median)}{unit}**.
@@ -990,20 +971,18 @@ def render_tab_factores(df_latest, metrics_df):
             
             if pd.api.types.is_numeric_dtype(values) and not values.empty and not data_for_hist.empty:
                 fig_hist = px.histogram(
-                    data_for_hist, # <--- Usar data_for_hist
+                    data_for_hist, 
                     x=selected_metric, 
                     nbins=50, 
                     title=f"Histograma de Distribución Global", 
                     template='plotly_white', 
-                    # color="continent", # <--- ¡ELIMINADO! Simplifica el gráfico
                     hover_data=['location'],
-                    log_x=log_scale_active # <--- Usar log_scale_active
+                    log_x=log_scale_active 
                 )
                 fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
                 fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
                 st.plotly_chart(fig_hist, use_container_width=True) 
 
-        # ---  Diagrama de Cajas (Box Plot) ---
         st.markdown("---")
         st.markdown(f'<div class="section-title">Comparación por Continente ({selected_name}) - {title_suffix}</div>', unsafe_allow_html=True)
         st.markdown("El **Histograma** de arriba muestra la forma global. Este **Diagrama de Cajas** es mejor para comparar las distribuciones entre continentes.")
@@ -1020,24 +999,22 @@ def render_tab_factores(df_latest, metrics_df):
 
         if pd.api.types.is_numeric_dtype(values) and not values.empty and not data_for_box.empty:
             fig_box = px.box(
-                data_for_box, # <--- Usar data_for_box
+                data_for_box, 
                 x=selected_metric,
                 y="continent",
                 color="continent",
-                color_discrete_sequence=px.colors.qualitative.G10, # <--- ¡AÑADIDO!
+                color_discrete_sequence=px.colors.qualitative.G10, 
                 title=f"Diagrama de Cajas por Continente",
                 template='plotly_white',
-                log_x=log_scale_box_active, # <--- Usar log_scale_box_active
-                points="all", # Muestra todos los países como puntos
+                log_x=log_scale_box_active, 
+                points="all", 
                 hover_data=['location']
             )
             fig_box.update_layout(yaxis_title="Continente", xaxis_title=selected_name)
             st.plotly_chart(fig_box, use_container_width=True)
-        # --- FIN DE LA MEJORA DE COMPRENSIÓN ---
 
     st.markdown("---")
 
-    # --- ¡MEJORA 2! DESCUBRIDOR DE CORRELACIONES ---
     st.markdown('<div class="section-title">🔗 Descubridor de Correlaciones Clave</div>', unsafe_allow_html=True)
     st.markdown("""
     Esta sección calcula automáticamente qué factores socioeconómicos tienen la correlación
@@ -1049,7 +1026,6 @@ def render_tab_factores(df_latest, metrics_df):
         col1, col2 = st.columns([1, 1])
         with col1:
             outcome_options = ['total_deaths_per_million', 'total_cases_per_million', 'case_fatality_rate', 'people_fully_vaccinated_per_hundred', 'icu_patients_per_million']
-            # Asegurarse de que las opciones existan en el DF
             available_outcome_options = [opt for opt in outcome_options if opt in metrics_df.columns]
             
             selected_outcome, selected_outcome_name = create_translated_selectbox(
@@ -1061,14 +1037,12 @@ def render_tab_factores(df_latest, metrics_df):
             )
         
         if selected_outcome:
-            # Definir factores para probar
             covid_factors = ['people_fully_vaccinated_per_hundred', 'positive_rate', 'stringency_index', 'reproduction_rate']
             all_factors = [
                 f for f in DEMOGRAPHIC_FACTORS + covid_factors 
                 if f in latest_countries_only.columns and f != selected_outcome
             ]
             
-            # Calcular correlaciones
             cols_to_correlate = [selected_outcome] + all_factors
             corr_data = latest_countries_only[cols_to_correlate].dropna()
             
@@ -1077,17 +1051,13 @@ def render_tab_factores(df_latest, metrics_df):
             else:
                 corr_matrix = corr_data.corr(method='spearman')
                 
-                # Obtener la serie de correlaciones para la métrica de resultado
                 corr_series = corr_matrix[selected_outcome].drop(selected_outcome)
                 
-                # Ordenar por valor absoluto para encontrar las más fuertes
                 strongest_corr_series = corr_series.abs().sort_values(ascending=False).index
-                top_15_corr = corr_series.loc[strongest_corr_series[:15]].sort_values(ascending=True) # Sort ascending for plot
+                top_15_corr = corr_series.loc[strongest_corr_series[:15]].sort_values(ascending=True) 
                 
-                # Convertir a DataFrame para graficar
                 df_corr_plot = top_15_corr.reset_index().rename(columns={'index': 'Factor', selected_outcome: 'Correlación'})
                 
-                # Traducir los factores para el gráfico
                 df_corr_plot['Factor'] = df_corr_plot['Factor'].apply(translate_column)
                 
                 df_corr_plot['Tipo'] = ['Positiva' if c > 0 else 'Negativa' for c in df_corr_plot['Correlación']]
@@ -1100,7 +1070,7 @@ def render_tab_factores(df_latest, metrics_df):
                     title=f"Factores con Mayor Correlación con '{selected_outcome_name}'",
                     template='plotly_white',
                     color='Tipo',
-                    color_discrete_map={'Positiva': '#4F46E5', 'Negativa': '#dc3545'}, # <--- ¡CAMBIO DE COLOR ACENTO!
+                    color_discrete_map={'Positiva': '#4F46E5', 'Negativa': '#dc3545'}, 
                     text='Correlación'
                 )
                 fig_corr_bar.update_traces(texttemplate='%{text:.2f}', textposition='outside')
@@ -1111,13 +1081,9 @@ def render_tab_factores(df_latest, metrics_df):
                     legend_title="Tipo de Correlación"
                 )
                 st.plotly_chart(fig_corr_bar, use_container_width=True)
-    # --- FIN DE LA MEJORA 2 ---
 
     st.markdown("---")
 
-    # --- ¡SECCIÓN REFACTORIZADA! ---
-    # Se eliminó la "Matriz de Correlación" (Heatmap) por ser redundante
-    # con el "Descubridor de Correlaciones"
     
     with st.container(border=False):
         st.markdown('<div class="section-title">🔎 Exploración Visual de Correlaciones</div>', unsafe_allow_html=True)
@@ -1132,7 +1098,6 @@ def render_tab_factores(df_latest, metrics_df):
         
         if selected_x and selected_y:
             
-            # Aplicar filtro de outliers (local de la pestaña)
             plot_data = latest_countries_only.dropna(subset=[selected_x, selected_y])
             if not include_outliers:
                  if pd.api.types.is_numeric_dtype(plot_data[selected_x]) and len(plot_data) > 1:
@@ -1151,7 +1116,6 @@ def render_tab_factores(df_latest, metrics_df):
                     upper_y = Q3_y + 1.5 * IQR_y
                     plot_data = plot_data[(plot_data[selected_y] >= lower_y) & (plot_data[selected_y] <= upper_y)]
 
-            # Aplicar filtro logarítmico para el gráfico de dispersión
             log_x_scatter = use_log_scale
             log_y_scatter = use_log_scale
             
@@ -1167,14 +1131,13 @@ def render_tab_factores(df_latest, metrics_df):
                     plot_data,
                     x=selected_x, y=selected_y, title=f"{name_x} vs. {name_y}",
                     color="continent",
-                    color_discrete_sequence=px.colors.qualitative.Plotly, # <--- ¡AÑADIDO!
+                    color_discrete_sequence=px.colors.qualitative.Plotly, 
                     hover_name="location",   
                     trendline="ols", template='plotly_white', height=600,
                     log_x=log_x_scatter, log_y=log_y_scatter,
                     hover_data={selected_x:':,.1f', selected_y:':,.1f', 'continent':False}
                 )
                 st.plotly_chart(fig_scatter, use_container_width=True) 
-    # --- FIN DE LA SECCIÓN REFACTORIZADA ---
 
 
 # --- Pestaña 5: Arquitectura ---
@@ -1182,6 +1145,16 @@ def render_tab_arquitectura():
     """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL SISTEMA"""
     st.markdown('<div class="section-title">🏗️ Sobre este Proyecto</div>', unsafe_allow_html=True)
     
+    # --- INICIO DE MEJORA 1: DIAGRAMA DE ARQUITECTURA ---
+    with st.container(border=False):
+        st.markdown("### Diagrama de la Arquitectura del Sistema")
+        try:
+            # Asegúrate de tener una imagen llamada "arquitectura.png" en la misma carpeta
+            st.image("arquitectura.png", caption="Diagrama de flujo de la arquitectura desacoplada (Frontend/Backend)")
+        except Exception:
+            st.warning("No se pudo cargar el diagrama de arquitectura (asegúrate de que 'arquitectura.png' esté en la carpeta).")
+    # --- FIN DE MEJORA 1 ---
+
     with st.container(border=False):
         st.markdown("### Resumen del Proyecto")
         st.markdown("""
@@ -1200,7 +1173,12 @@ def render_tab_arquitectura():
             El "cerebro" del sistema es una API RESTful construida con **FastAPI** y desplegada en **Render**.
             
             * **Desacoplado:** El frontend (Streamlit) está 100% separado del backend. Esto permite que en el futuro, otros servicios (como una app móvil) puedan consumir la misma fuente de datos.
-            * **ETL en Memoria:** Al iniciar, la API carga el CSV (`api/data/owid-covid-data.csv`), lo procesa completamente en memoria usando **Pandas** (limpieza, imputación, ingeniería de features) y lo almacena en una variable global para un acceso instantáneo.
+            
+            **--- INICIO DE MEJORA 2: TEXTO DE API ACTUALIZADO ---**
+            * **ETL Optimizado:** El pipeline de ETL (limpieza, imputación, etc.) se ejecuta **localmente** para generar un archivo **Parquet** (`.parquet`) pre-procesado.
+            * **Arranque Rápido:** Al iniciar, la API solo carga este archivo Parquet optimizado en memoria. Esto reduce el tiempo de arranque en Render de ~1-2 minutos a **menos de 10 segundos** y consume mucha menos RAM.
+            **--- FIN DE MEJORA 2 ---**
+            
             * **Rendimiento:** Se usó FastAPI por su alto rendimiento asíncrono, ideal para aplicaciones de datos.
             * **Despliegue:** La API está alojada en [Render]({API_BASE_URL.split('/docs')[0]}).
             """)
@@ -1222,11 +1200,45 @@ def render_tab_arquitectura():
     
     st.markdown("---")
 
+    # --- INICIO DE MEJORA 3: SECCIÓN DE TECH STACK ---
+    st.markdown('<div class="section-title">🛠️ Tecnologías Utilizadas</div>', unsafe_allow_html=True)
+    
+    col1_tech, col2_tech, col3_tech = st.columns(3)
+    with col1_tech:
+        st.markdown("""
+        **Backend**
+        * FastAPI (Python)
+        * Pandas
+        * PyArrow (Para Parquet)
+        * Uvicorn
+        """)
+    with col2_tech:
+        st.markdown("""
+        **Frontend**
+        * Streamlit
+        * Plotly
+        * Requests
+        """)
+    with col3_tech:
+        st.markdown("""
+        **Despliegue y Datos**
+        * Render (Host de la API)
+        * Streamlit Cloud (Host del Dashboard)
+        * Git / GitHub
+        """)
+    # --- FIN DE MEJORA 3 ---
+
+    st.markdown("---")
+
     with st.container(border=False):
-        st.markdown("### DESPEDIDA")
+        # --- INICIO DE MEJORA 4: TÍTULO MEJORADO (SIN GITHUB LINKS) ---
+        st.markdown('<div class="section-title">🏆 Equipo de Desarrollo</div>', unsafe_allow_html=True)
+        # --- FIN DE MEJORA 4 ---
+        
         st.markdown("""
         
         Este proyecto representa la culminación de años de estudio en Ingeniería de Software y la aplicación práctica de conceptos de arquitectura, desarrollo backend, frontend y despliegue en la nube.
+        
         CON MUCHO CARIÑO GRUPO 6
         -INTEGRANTES:
         - FABIAN REYES.
@@ -1285,12 +1297,12 @@ def main():
     with col1:
         total_cases = latest['total_cases'].sum() if 'total_cases' in latest.columns else np.nan
         new_cases = latest['new_cases'].sum() if 'new_cases' in latest.columns else np.nan
-        st.metric(label="😷 Casos Totales", value=formatar_numero_grande(total_cases), # <--- ¡EMOJI AÑADIDO!
+        st.metric(label="😷 Casos Totales", value=formatar_numero_grande(total_cases),
                   delta=f"{new_cases:,.0f} (Nuevos)" if pd.notna(new_cases) and new_cases != 0 else None)
     with col2:
         total_deaths = latest['total_deaths'].sum() if 'total_deaths' in latest.columns else np.nan
         new_deaths = latest['new_deaths'].sum() if 'new_deaths' in latest.columns else np.nan
-        st.metric(label="💀 Muertes Totales", value=formatar_numero_grande(total_deaths), # <--- ¡EMOJI AÑADIDO!
+        st.metric(label="💀 Muertes Totales", value=formatar_numero_grande(total_deaths),
                   delta=f"{new_deaths:,.0f} (Nuevas)" if pd.notna(new_deaths) and new_deaths != 0 else None, delta_color="inverse")
     with col3:
         pop_label = "Población Mundial"
@@ -1308,10 +1320,10 @@ def main():
             except Exception:
                 pop_label = "Población (Error)"
                 pop_help = "No se pudo calcular la población."
-        st.metric(label=f"🌏 {pop_label}", value=formatar_numero_grande(total_pop), help=pop_help) # <--- ¡EMOJI AÑADIDO!
+        st.metric(label=f"🌏 {pop_label}", value=formatar_numero_grande(total_pop), help=pop_help)
     with col4:
         unique_countries = latest[~latest['location'].str.lower().isin(AGGREGATES)]['location'].nunique() if 'location' in latest.columns else 0
-        st.metric(label="🏳️ Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).") # <--- ¡EMOJI AÑADIDO!
+        st.metric(label="🏳️ Países/Regiones", value=unique_countries, help="Número de países/regiones individuales (excluyendo agregados).")
     
     st.markdown("---") # Separador antes de las pestañas
     
@@ -1329,7 +1341,6 @@ def main():
     with tab_pais:
         render_tab_pais(countries_list, metrics_df, data_min_date, data_max_date)
     with tab_comparar:
-        # ¡MEJORA 3! - Pasar las fechas
         render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date) 
     with tab_factores:
         render_tab_factores(df_latest, metrics_df) 
