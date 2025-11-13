@@ -761,7 +761,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                 default=[c for c in ['Ecuador', 'Peru', 'Colombia', 'Brazil', 'Argentina'] if c in countries]
             )
     
-    # --- PESTAÑAS INTERNAS ELIMINADAS ---
+    
     
     main_col1, main_col2 = st.columns([3, 2]) 
     # --- Columna 1: Gráfico de Barras ---
@@ -808,7 +808,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
             if selected_countries and selected_metrics_table:
                 st.markdown(f'<div class="section-title" style="margin-top: 20px;">Tabla de Datos</div>', unsafe_allow_html=True)
                 
-                # --- CORRECCIÓN KeyError en Tabla Comparativa ---
+                # ---Tabla Comparativa ---
                 existing_cols_table = [col for col in selected_metrics_table if col in latest_countries_only.columns]
                 if not existing_cols_table:
                     st.warning("Ninguna de las métricas seleccionadas para la tabla existe en los datos procesados.")
@@ -828,7 +828,7 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
                     
                     if not df_to_norm.empty:
                         
-                        # --- ¡INICIO DE LA MEJORA: HEATMAP INTELIGENTE! ---
+                        
                         df_norm_smart = df_to_norm.copy()
                         for metric in df_norm_smart.columns:
                             col_data = df_norm_smart[metric]
@@ -873,9 +873,6 @@ def render_tab_comparativo(df_latest, metrics_df, data_min_date, data_max_date):
             else:
                 st.info("Selecciona al menos una métrica para la tabla/heatmap.")
 
-    # --- ¡SECCIÓN ELIMINADA! ---
-    # Se eliminó la "Comparación de Series de Tiempo"
-    # --- FIN DE LA SECCIÓN ELIMINADA ---
 
 
 # --- FUNCIÓN Pestaña 4: Factores y Correlaciones  ---
