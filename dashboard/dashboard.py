@@ -1174,10 +1174,8 @@ def render_tab_arquitectura():
             
             * **Desacoplado:** El frontend (Streamlit) está 100% separado del backend. Esto permite que en el futuro, otros servicios (como una app móvil) puedan consumir la misma fuente de datos.
             
-            **--- INICIO DE MEJORA 2: TEXTO DE API ACTUALIZADO ---**
             * **ETL Optimizado:** El pipeline de ETL (limpieza, imputación, etc.) se ejecuta **localmente** para generar un archivo **Parquet** (`.parquet`) pre-procesado.
             * **Arranque Rápido:** Al iniciar, la API solo carga este archivo Parquet optimizado en memoria. Esto reduce el tiempo de arranque en Render de ~1-2 minutos a **menos de 10 segundos** y consume mucha menos RAM.
-            **--- FIN DE MEJORA 2 ---**
             
             * **Rendimiento:** Se usó FastAPI por su alto rendimiento asíncrono, ideal para aplicaciones de datos.
             * **Despliegue:** La API está alojada en [Render]({API_BASE_URL.split('/docs')[0]}).
@@ -1200,7 +1198,7 @@ def render_tab_arquitectura():
     
     st.markdown("---")
 
-    # --- INICIO DE MEJORA 3: SECCIÓN DE TECH STACK ---
+   
     st.markdown('<div class="section-title">🛠️ Tecnologías Utilizadas</div>', unsafe_allow_html=True)
     
     col1_tech, col2_tech, col3_tech = st.columns(3)
@@ -1226,14 +1224,14 @@ def render_tab_arquitectura():
         * Streamlit Cloud (Host del Dashboard)
         * Git / GitHub
         """)
-    # --- FIN DE MEJORA 3 ---
+    
 
     st.markdown("---")
 
     with st.container(border=False):
-        # --- INICIO DE MEJORA 4: TÍTULO MEJORADO (SIN GITHUB LINKS) ---
+        
         st.markdown('<div class="section-title">🏆 Equipo de Desarrollo</div>', unsafe_allow_html=True)
-        # --- FIN DE MEJORA 4 ---
+        
         
         st.markdown("""
         
