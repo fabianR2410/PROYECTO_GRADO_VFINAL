@@ -1145,15 +1145,6 @@ def render_tab_arquitectura():
     """LÓGICA PARA LA PESTAÑA 5: ARQUITECTURA DEL SISTEMA"""
     st.markdown('<div class="section-title">🏗️ Sobre este Proyecto</div>', unsafe_allow_html=True)
     
-    # --- INICIO DE MEJORA 1: DIAGRAMA DE ARQUITECTURA ---
-    with st.container(border=False):
-        st.markdown("### Diagrama de la Arquitectura del Sistema")
-        try:
-            # Asegúrate de tener una imagen llamada "arquitectura.png" en la misma carpeta
-            st.image("arquitectura.png", caption="Diagrama de flujo de la arquitectura desacoplada (Frontend/Backend)")
-        except Exception:
-            st.warning("No se pudo cargar el diagrama de arquitectura (asegúrate de que 'arquitectura.png' esté en la carpeta).")
-    # --- FIN DE MEJORA 1 ---
 
     with st.container(border=False):
         st.markdown("### Resumen del Proyecto")
