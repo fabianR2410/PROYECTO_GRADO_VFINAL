@@ -6,8 +6,6 @@ Módulo encargado de cargar, descargar y gestionar datos
 de COVID-19 desde fuentes oficiales o archivos locales,
 con soporte para agregar fila mundial (“World”).
 
-Autor: Andrés Reyes
-Fecha: 2025-10-31
 """
 
 from __future__ import annotations
@@ -38,7 +36,13 @@ if not logger.handlers:
 # CLASE PRINCIPAL
 # ==========================================================
 class CovidDataLoader:
-    """Carga y administra datasets de COVID-19 desde múltiples fuentes."""
+    """
+    Carga y administra datasets de COVID-19 desde múltiples fuentes.
+    
+    Se encarga de la lógica de descarga, gestión de caché local y 
+    la creación de agregados (como 'World') antes de que los
+    datos pasen al pipeline de limpieza.
+    """
 
     def __init__(self, data_dir: str = "data") -> None:
         """
@@ -61,7 +65,18 @@ class CovidDataLoader:
     # BÚSQUEDA DE ARCHIVOS EXISTENTES
     # ----------------------------------------------------------
     def _find_existing_file(self, source: str) -> Optional[Path]:
-        """Busca archivos existentes en diferentes ubicaciones y devuelve el más grande."""
+        """
+        Busca archivos cacheados en diferentes ubicaciones y devuelve el más grande.
+        
+        Esto permite flexibilidad si el usuario ha movido el archivo
+        o si existen múltiples versiones.
+
+        Args:
+            source (str): El identificador de la fuente (ej. "owid").
+
+        Returns:
+            Optional[Path]: La ruta al archivo más grande encontrado, o None.
+        """
         possible_locations = [
             self.data_dir / "owid-covid-data.csv",
             self.data_dir / "owid-covid-data.xlsx",
@@ -78,6 +93,7 @@ class CovidDataLoader:
         if not found_files:
             return None
 
+        # Ordenar por tamaño de archivo (descendente) y tomar el primero
         found_files.sort(key=lambda x: x[1], reverse=True)
         best_file = found_files[0][0]
         logger.info(f"Using cached dataset: {best_file} ({found_files[0][1] / 1e6:.2f} MB)")
@@ -87,16 +103,30 @@ class CovidDataLoader:
     # DESCARGA DE DATOS
     # ----------------------------------------------------------
     def download_data(self, source: str = "owid", force: bool = False) -> Path:
-        """Descarga datos desde OWID o usa una copia local si existe."""
+        """
+        Descarga datos desde OWID o usa una copia local si existe.
+
+        Args:
+            source (str): La clave de la fuente a descargar (definida en self.urls).
+            force (bool): Si es True, fuerza la descarga ignorando el caché.
+
+        Returns:
+            Path: La ruta al archivo descargado o al archivo en caché.
+            
+        Raises:
+            ValueError: Si la fuente (source) no es válida.
+        """
         if source not in self.urls:
             raise ValueError(f"Fuente no válida: {source}")
 
         cached_file = self._find_existing_file(source)
+        
+        # 1. Usar caché si existe y no se fuerza la descarga
         if cached_file and not force:
             return cached_file
 
+        # 2. Intentar descargar
         target_path = self.raw_dir / f"{source}.csv"
-
         try:
             logger.info(f"Descargando datos desde {self.urls[source]} ...")
             response = requests.get(self.urls[source], timeout=60)
@@ -106,6 +136,7 @@ class CovidDataLoader:
             logger.info(f"Datos descargados correctamente en {target_path}")
             return target_path
 
+        # 3. Manejar errores (sin conexión, etc.)
         except requests.exceptions.ConnectionError:
             logger.warning("Sin conexión a internet. Buscando archivo en caché...")
             cached = self._find_existing_file(source)
@@ -170,27 +201,36 @@ class CovidDataLoader:
         return filepath
 
     # ----------------------------------------------------------
-    # AGREGAR FILA MUNDIAL (FUNCIÓN CORREGIDA)
+    # AGREGAR FILA MUNDIAL (FUNCIÓN CORREGIDA Y ETIQUETADA)
     # ----------------------------------------------------------
     def _add_global_totals(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Agrega fila global sumando métricas de países (excluyendo continentes).
-        Maneja correctamente las columnas estáticas (population) 
-        y las promediadas (median_age).
+        Agrega fila global ("World") sumando métricas de países.
+        
+        Descarta los agregados de OWID (ej. 'Asia', 'Europe') y
+        recalcula el total 'World' desde cero para asegurar consistencia.
+        Maneja promedios ponderados por población para métricas estáticas.
+
+        Args:
+            df (pd.DataFrame): El DataFrame crudo cargado.
+
+        Returns:
+            pd.DataFrame: Un DataFrame que contiene solo países y una fila 
+                          'World' recalculada.
         """
         if df.empty or 'date' not in df.columns:
             return df
         
-        # 1. Filtrar solo países (los que tienen 'continent' asignado)
+        # 1. Filtrar solo países (excluir 'World' y continentes de OWID)
         countries_df = df[
             df['continent'].notna() & (df['location'] != 'World')
         ].copy()
 
         if countries_df.empty:
             logger.warning("No country data found to aggregate 'World' row.")
-            return df # Devuelve el df original (que puede tener 'World' de OWID)
+            return df
 
-        # 2. Definir tipos de columnas
+        # 2. Definir tipos de columnas para la agregación
         
         # Columnas que deben sumarse por fecha (casos, muertes, tests, etc.)
         time_series_sum_cols = [
@@ -220,6 +260,7 @@ class CovidDataLoader:
         world_time_series_df = countries_df.groupby('date')[time_series_sum_cols].sum(numeric_only=True).reset_index()
 
         # 4. Calcular totales estáticos (una sola vez)
+        
         # Tomar el último registro de cada país (que tiene la población más reciente)
         latest_countries_df = countries_df.drop_duplicates(subset=['location'], keep='last')
         
@@ -230,11 +271,14 @@ class CovidDataLoader:
             world_population = latest_countries_df['population'].sum()
             world_static_totals['population'] = world_population
             
-            # Calcular promedios ponderados (¡el método profesional!)
+            # --- Lógica de Promedio Ponderado (Nivel Profesional) ---
+            # Un promedio simple de 'gdp_per_capita' estaría mal.
+            # Se debe ponderar por la población de cada país.
             for col in static_avg_cols:
-                # Multiplicar métrica * población para obtener el peso
+                # (Métrica * Población)
                 weighted_col_sum = (latest_countries_df[col] * latest_countries_df['population']).sum()
-                # Dividir por la población total
+                
+                # (Suma de [Métrica * Población]) / (Población Total)
                 if world_population > 0:
                     world_static_totals[col] = weighted_col_sum / world_population
                 else:
@@ -243,7 +287,7 @@ class CovidDataLoader:
         # 5. Combinar los DataFrames
         world_df = world_time_series_df.copy()
         
-        # Añadir las columnas estáticas (se repetirán para cada fecha, lo cual es correcto)
+        # Añadir las columnas estáticas (se repetirán para cada fecha)
         for col, value in world_static_totals.items():
             world_df[col] = value
             
@@ -252,7 +296,6 @@ class CovidDataLoader:
         world_df['continent'] = 'Global' # Usamos 'Global' para distinguirlo
 
         # 6. Unir los países + nuestro nuevo 'World'
-        # (Descartamos los agregados de OWID como 'Asia', 'Europe', etc.)
         df_with_world = pd.concat([countries_df, world_df], ignore_index=True)
         
         return df_with_world.sort_values(['location', 'date']).reset_index(drop=True)
@@ -267,7 +310,7 @@ class CovidDataLoader:
         local_filepath: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Carga los datos en un DataFrame.
+        Carga los datos en un DataFrame desde local o remoto.
 
         Args:
             source (str): Fuente ('owid' o 'owid_latest').
@@ -275,7 +318,10 @@ class CovidDataLoader:
             local_filepath (Optional[str]): Ruta directa a un archivo CSV/Excel local.
 
         Returns:
-            pd.DataFrame: Datos cargados y normalizados.
+            pd.DataFrame: Datos cargados y con la fila 'World' agregada.
+            
+        Raises:
+            ValueError: Si el dataset cargado está vacío.
         """
 
         # --- Si se pasa un archivo local ---
@@ -298,7 +344,7 @@ class CovidDataLoader:
         if "date" in df.columns:
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-        # Agregar fila global (Función ya corregida)
+        # Agregar fila global (recalculada)
         df = self._add_global_totals(df)
 
         if df.empty:
