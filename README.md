@@ -68,7 +68,7 @@ Git
     
         Clona el repositorio:
 
-        git clone [https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL.git]
+        git clone https://github.com/fabianR2410/PROYECTO_GRADO_VFINAL.git
         cd PROYECTO_GRADO_VFINAL
 
 2. Crea un entorno virtual (recomendado):
