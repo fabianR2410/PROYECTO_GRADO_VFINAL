@@ -1160,17 +1160,21 @@ def render_tab_arquitectura():
     with col1:
         with st.container(border=False):
             st.markdown("### 🚀 Backend (La API)")
+            # --- INICIO DE LA CORRECCIÓN ---
+            # El texto aquí ahora coincide con el README.md y main.py
             st.markdown(f"""
-            El "cerebro" del sistema es una API RESTful construida con **FastAPI** y desplegada en **Render**.
+            El "cerebro" del sistema es una API RESTful construida con **FastAPI** (`api/main.py`) y desplegada en **Render**.
             
             * **Desacoplado:** El frontend (Streamlit) está 100% separado del backend. Esto permite que en el futuro, otros servicios (como una app móvil) puedan consumir la misma fuente de datos.
             
-            * **ETL Optimizado:** El pipeline de ETL (limpieza, imputación, etc.) se ejecuta **localmente** para generar un archivo **Parquet** (`.parquet`) pre-procesado.
-            * **Arranque Rápido:** Al iniciar, la API solo carga este archivo Parquet optimizado en memoria. Esto reduce el tiempo de arranque en Render de ~1-2 minutos a **menos de 10 segundos** y consume mucha menos RAM.
+            * **Arranque Inteligente:** Al iniciar, la API carga el archivo `api/data/owid-covid-data.csv`, ejecuta el pipeline completo de ETL (limpieza, imputación y creación de características) y **almacena los datos procesados en memoria**.
             
+            * **Arquitectura de Despliegue:** Esta arquitectura (ETL en el arranque) es ideal para servicios como Render, que pueden tener "arranques en frío" (cold starts), pero asegura que los datos estén siempre actualizados con el CSV desplegado.
+
             * **Rendimiento:** Se usó FastAPI por su alto rendimiento asíncrono, ideal para aplicaciones de datos.
             * **Despliegue:** La API está alojada en [Render]({API_BASE_URL.split('/docs')[0]}).
             """)
+            # --- FIN DE LA CORRECCIÓN ---
             st.link_button("Ver Documentación de la API (Swagger)", f"{API_BASE_URL}/docs")
 
     with col2:
@@ -1198,9 +1202,8 @@ def render_tab_arquitectura():
         **Backend**
         * FastAPI (Python)
         * Pandas
-        * PyArrow (Para Parquet)
         * Uvicorn
-        """)
+        """) # Se quitó PyArrow (ya no se usa Parquet)
     with col2_tech:
         st.markdown("""
         **Frontend**
