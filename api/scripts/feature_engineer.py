@@ -474,14 +474,64 @@ class CovidFeatureEngineer:
         if include_difference:
             df_feat = self.create_difference_features(df_feat)
         
-        logger.info(f"Feature engineering completed: {len(self.features_created)} features created")
-        logger.info(f"Final dataset shape: {df_feat.shape}")
+        logger.info(f"Feature engineering completed: {len(self.features_created)} raw features created (pre-cleanup)")
+
+        # --- ¡INICIO DE LA MODIFICACIÓN! ---
+        # Paso final: Eliminar todas las columnas de ingeniería 
+        # que no son útiles para el dashboard final.
+        
+        METRICS_TO_DROP = [
+            # Temporal features (created by create_temporal_features)
+            'year', 'month', 'day', 'day_of_week', 'week_of_year', 'quarter', 'is_weekend',
+            'days_since_first_case', 'Days Since First Case', # Añadir PascalCase por si acaso
+
+            # Lag features (created by create_lag_features)
+            'new_cases_lag1', 'new_cases_lag7', 'new_cases_lag14',
+            'new_deaths_lag1', 'new_deaths_lag7', 'new_deaths_lag14',
+            'new_tests_lag1', 'new_tests_lag7', 'new_tests_lag14',
+            'new_vaccinations_lag1', 'new_vaccinations_lag7', 'new_vaccinations_lag14',
+            
+            # PascalCase Lag (de las capturas de pantalla, por si acaso)
+            'New Cases Lag1', 'New Cases Lag7', 'New Cases Lag14',
+            'New Deaths Lag1', 'New Deaths Lag7', 'New Deaths Lag14',
+
+            # Difference features (created by create_difference_features)
+            'new_cases_diff', 'new_deaths_diff',
+
+            # Moving Averages (created by create_moving_averages)
+            # Nota: Mantenemos las columnas '_smoothed' (que vienen de OWID) 
+            # y eliminamos nuestras '_ma' calculadas.
+            'new_cases_ma7', 'new_cases_ma14',
+            'new_deaths_ma7', 'new_deaths_ma14',
+            'new_tests_ma7', 'new_tests_ma14',
+            'new_vaccinations_ma7', 'new_vaccinations_ma14',
+            
+            # PascalCase MA (de las capturas de pantalla)
+            'New Cases Ma7', 'New Deaths Ma7',
+
+            # Other junk from screenshots (or other sources)
+            'New People Vaccinated Smoothed',
+            'New People Vaccinated Smoothed Per Hundred'
+        ]
+        
+        # Obtener las columnas que SÍ existen en el DataFrame para evitar errores
+        columns_to_drop = [col for col in METRICS_TO_DROP if col in df_feat.columns]
+        
+        if columns_to_drop:
+            df_feat = df_feat.drop(columns=columns_to_drop)
+            logger.info(f"Final cleanup: Dropped {len(columns_to_drop)} intermediate engineering features.")
+        else:
+            logger.info("Final cleanup: No intermediate engineering features found to drop.")
+        # --- FIN DE LA MODIFICACIÓN ---
+        
+        logger.info(f"Final dataset shape (post-cleanup): {df_feat.shape}")
         
         return df_feat
     
     def get_features_created(self) -> List[str]:
         """
         Get list of features created by this engineer.
+        (Note: May include features dropped during cleanup)
         
         Returns:
             List of feature names
@@ -491,6 +541,7 @@ class CovidFeatureEngineer:
     def get_feature_summary(self) -> Dict[str, int]:
         """
         Get summary of features created by category.
+        (Note: Based on features created *before* cleanup)
         
         Returns:
             Dictionary with feature counts by category
