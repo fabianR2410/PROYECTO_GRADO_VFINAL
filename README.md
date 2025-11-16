@@ -133,34 +133,7 @@ El dashboard necesita saber dónde encontrar la API. Le diremos que use nuestra 
         streamlit run dashboard.py
 
 10. Tu navegador se abrirá automáticamente, mostrando el dashboard (http://localhost:8501) cargando datos desde tu API local.
- 📁 Estructura del Proyecto
-PROYECTO_GRADO_VFINAL/
-│
-├── .streamlit/
-│   └── secrets.toml        # (Local) Configuración de la API para el dashboard
-│
-├── api/
-│   ├── data/
-│   │   └── owid-covid-data.csv # (Local) Fuente de datos crudos
-│   ├── scripts/
-│   │   ├── data_cleaner.py
-│   │   ├── data_imputer.py
-│   │   ├── data_loader.py
-│   │   └── feature_engineer.py
-│   ├── 
-│   ├── main.py                 # Script del Backend (FastAPI)
-│   └── requirements.txt        # Dependencias del Backend
-│
-├── dashboard/
-│   ├── 
-│   └── dashboard.py            # Script del Frontend (Streamlit)
-│
-├── .gitignore
-├── README.md                   
-├── requirements.txt            # Dependencias del Frontend (Streamlit)
-├── packages.txt                # Paquetes del sistema (para Streamlit Cloud)
-└── runtime.txt                 # Versión de Python (para Streamlit Cloud)
-
+ 
 🏆 Equipo de Desarrollo (Grupo 6)
     
     FABIAN REYES
