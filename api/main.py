@@ -226,12 +226,9 @@ async def compare_timeseries(
     countries: str = Query(..., description="Lista de países separados por comas (ej: Ecuador,Peru,Colombia)"),
     metric: str = Query("new_cases_smoothed", description="Métrica a comparar"),
     start_date: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    
-    # --- ¡ESTA ES LA LÍNEA CORREGIDA! ---
     end_date: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD)", pattern=r"^\d{4}-\d{2}-\d{2}$")
 ):
-    """
-    [RE-ACTIVADO] Compara una métrica específica a través de múltiples países,
+    """Compara una métrica específica a través de múltiples países,
     devolviendo sus series de tiempo.
     """
     try:
