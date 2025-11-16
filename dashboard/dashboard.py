@@ -39,7 +39,7 @@ AGGREGATES = ['world', 'europe', 'asia', 'africa', 'north america', 'south ameri
 
 # ¡NUEVO! Métricas de ingeniería que no son útiles para visualización
 VISUALIZATION_EXCLUDE_METRICS = [
-    # Métricas de Lag (Desfase)
+    # Métricas de Lag (Desfase) - snake_case (de la API original)
     'new_cases_lag_1', 'new_cases_lag_7', 'new_cases_lag_14',
     'new_deaths_lag_1', 'new_deaths_lag_7', 'new_deaths_lag_14',
     'new_tests_lag_1', 'new_tests_lag_7', 'new_tests_lag_14',
@@ -49,8 +49,24 @@ VISUALIZATION_EXCLUDE_METRICS = [
     'new_cases_diff', 'new_deaths_diff',
 
     # Features temporales que no se grafican
-    'year', 'month', 'day', 'day_of_week', 'week_of_year', 'quarter', 'is_weekend'
+    'year', 'month', 'day', 'day_of_week', 'week_of_year', 'quarter', 'is_weekend',
+
+    # --- ¡NUEVAS MÉTRICAS A EXCLUIR! (CORREGIDO) ---
+    # (Basado en las capturas, parecen ser métricas PascalCase no traducidas)
+    'New Cases Lag1', 'New Cases Lag7', 'New Cases Lag14',
+    'New Deaths Lag1', 'New Deaths Lag7', 'New Deaths Lag14',
+    # (Asumiendo que existen las de tests y vacunación también)
+    'New Tests Lag1', 'New Tests Lag7', 'New Tests Lag14',
+    'New Vaccinations Lag1', 'New Vaccinations Lag7', 'New Vaccinations Lag14',
+    
+    # (Otras métricas de ingeniería no traducidas vistas)
+    'New Cases Ma7',
+    'New Deaths Ma7',
+    'Days Since First Case',
+    'New People Vaccinated Smoothed',
+    'New People Vaccinated Smoothed Per Hundred'
 ]
+
 
 CROSS_SECTIONAL_EXCLUDE_METRICS = [
     'new_cases', 'new_deaths', 'new_tests', 'new_vaccinations', 
@@ -179,7 +195,7 @@ TRANSLATIONS = {
     'handwashing_facilities': 'Instalaciones de Lavado de Manos (%)',
     'hospital_beds_per_thousand': 'Camas de Hospital por Mil',
     'life_expectancy': 'Esperanza de Vida',
-    'human_development_index': 'Índice de Desarrollo Humano',
+    'human_development_index': 'Índice de Desarrollo Human',
 
     # Tasas y ratios
     'reproduction_rate': 'Tasa de Reproducción (R)',
