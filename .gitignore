@@ -72,3 +72,7 @@ __pycache__/
 # Archivos de Log
 *.log
 dashboard.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+#*.ipynb  
