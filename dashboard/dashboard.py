@@ -986,17 +986,51 @@ def render_tab_factores(df_latest, metrics_df):
                     data_for_hist = data_df 
             
             if pd.api.types.is_numeric_dtype(values) and not values.empty and not data_for_hist.empty:
+                
+                # --- CÁLCULO DE PAÍSES REPRESENTATIVOS ---
+                media_val = values.mean()
+                mediana_val = values.median()
+                
+                # Encontrar el país más cercano a la MEDIA
+                idx_media = (data_for_hist[selected_metric] - media_val).abs().idxmin()
+                pais_media = data_for_hist.loc[idx_media, 'location']
+                
+                # Encontrar el país más cercano a la MEDIANA
+                idx_mediana = (data_for_hist[selected_metric] - mediana_val).abs().idxmin()
+                pais_mediana = data_for_hist.loc[idx_mediana, 'location']
+
+                # --- CREACIÓN DEL GRÁFICO ---
                 fig_hist = px.histogram(
                     data_for_hist, 
                     x=selected_metric, 
                     nbins=50, 
                     title=f"Histograma de Distribución Global", 
                     template='plotly_white', 
+                    hover_name='location',      # <--- ¡IMPORTANTE! Para ver nombre al pasar el mouse
                     hover_data=['location'],
+                    marginal="rug",             # <--- ¡NUEVO! Añade las marcas de países abajo
                     log_x=log_scale_active 
                 )
-                fig_hist.add_vline(x=values.mean(), line_width=3, line_dash="dash", line_color="#dc3545", annotation_text="Media")
-                fig_hist.add_vline(x=values.median(), line_width=3, line_dash="dot", line_color="#28a745", annotation_text="Mediana")
+
+                # --- LÍNEAS VERTICALES CON ETIQUETAS DE PAÍSES ---
+                fig_hist.add_vline(
+                    x=media_val, 
+                    line_width=3, 
+                    line_dash="dash", 
+                    line_color="#dc3545", 
+                    annotation_text=f"Media: {media_val:,.1f}<br>(Cercano: {pais_media})", # <--- Muestra el país
+                    annotation_position="top right"
+                )
+                
+                fig_hist.add_vline(
+                    x=mediana_val, 
+                    line_width=3, 
+                    line_dash="dot", 
+                    line_color="#28a745", 
+                    annotation_text=f"Mediana: {mediana_val:,.1f}<br>(Cercano: {pais_mediana})", # <--- Muestra el país
+                    annotation_position="top left"
+                )
+                
                 st.plotly_chart(fig_hist, use_container_width=True) 
 
         st.markdown("---")
